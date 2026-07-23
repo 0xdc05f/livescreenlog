@@ -79,6 +79,7 @@ Production (`prod` profile) should fail fast on weak HMAC and wildcard capture o
 | Doc | Audience |
 |-----|----------|
 | `README.md` | Install, run, overview |
+| `Manual.md` | Bilingual operator/integration manual (KO + EN) |
 | `docs/deploy/DEPLOY.md` | Beta / self-host reference (compose + bare metal) |
 | `docs/api/API.md` | HTTP API |
 | `docs/architecture/ARCHITECTURE.md` | System design |
