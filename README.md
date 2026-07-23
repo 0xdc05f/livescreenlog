@@ -4,24 +4,35 @@ Self-hosted **session replay** server: capture browser sessions with rrweb, stor
 
 Java 21 · Spring Boot 4.x · PostgreSQL 16+ · Valkey/Redis · Svelte dashboard · Browser SDK
 
-
 ---
 
 ## 🚀 Real Production Setup (5 steps — this is the recommended way)
 
-**Vultr Postgres + Docker Valkey + one Docker image = done.**
+**Postgres + Valkey + one Docker image = done.**
 
-1. Create a PostgreSQL database on **Vultr** (or any managed Postgres).
-2. Start Valkey (one command):
+1. Pull and run PostgreSQL:
    ```bash
+   docker pull postgres:16-alpine
+   docker run -d --name postgres \
+     -e POSTGRES_USER=postgres \
+     -e POSTGRES_PASSWORD=your-strong-db-password \
+     -e POSTGRES_DB=livescreenlog \
+     -p 5432:5432 \
+     postgres:16-alpine
+   ```
+
+2. Pull and run Valkey:
+   ```bash
+   docker pull valkey/valkey:alpine
    docker run -d --name valkey -p 6379:6379 valkey/valkey:alpine
    ```
+
 3. Run LiveScreenLog (published image, no build needed):
    ```bash
    docker run -d \
      -p 8080:8080 \
      -e SPRING_PROFILES_ACTIVE=prod \
-     -e DB_HOST=your-vultr-db-host \
+     -e DB_HOST=localhost \
      -e DB_PORT=5432 \
      -e DB_NAME=livescreenlog \
      -e DB_USER=postgres \
@@ -32,7 +43,63 @@ Java 21 · Spring Boot 4.x · PostgreSQL 16+ · Valkey/Redis · Svelte dashboard
      -e LIVESCREENLOG_ALLOWED_CAPTURE_ORIGINS='https://your-site.com,https://admin.your-site.com' \
      ghcr.io/livescreenlog/server:0.1.0
    ```
+
+   Or use Docker Compose (recommended for local/production testing):
+   ```yaml
+   # docker-compose.yml
+   services:
+     postgres:
+       image: postgres:16-alpine
+       environment:
+         POSTGRES_USER: postgres
+         POSTGRES_PASSWORD: your-strong-db-password
+         POSTGRES_DB: livescreenlog
+       ports:
+         - "5432:5432"
+       healthcheck:
+         test: ["CMD-SHELL", "pg_isready -U postgres"]
+         interval: 5s
+         timeout: 5s
+         retries: 5
+
+     valkey:
+       image: valkey/valkey:alpine
+       ports:
+         - "6379:6379"
+       healthcheck:
+         test: ["CMD", "valkey-cli", "ping"]
+         interval: 5s
+         timeout: 5s
+         retries: 5
+
+     app:
+       image: ghcr.io/livescreenlog/server:0.1.0
+       depends_on:
+         postgres:
+           condition: service_healthy
+         valkey:
+           condition: service_healthy
+       ports:
+         - "8080:8080"
+       environment:
+         SPRING_PROFILES_ACTIVE: prod
+         DB_HOST: postgres
+         DB_PORT: 5432
+         DB_NAME: livescreenlog
+         DB_USER: postgres
+         DB_PASSWORD: your-strong-db-password
+         REDIS_HOST: valkey
+         REDIS_PORT: 6379
+         LIVESCREENLOG_HMAC_SECRET: 'a-very-strong-random-string-at-least-32-chars'
+         LIVESCREENLOG_ALLOWED_CAPTURE_ORIGINS: 'https://your-site.com,https://admin.your-site.com'
+   ```
+   Then run:
+   ```bash
+   docker compose up -d
+   ```
+
 4. Open the dashboard → **Settings → Project Management** → create a project and **copy the API Key**.
+
 5. Use it in your frontend:
    ```js
    import { LiveScreenLog } from 'livescreenlog';
@@ -45,8 +112,7 @@ Java 21 · Spring Boot 4.x · PostgreSQL 16+ · Valkey/Redis · Svelte dashboard
 
 **That's literally it.**
 
-Full step-by-step (with screenshots-style commands):  
-[docs/deploy/PRODUCTION_GUIDE.md](docs/deploy/PRODUCTION_GUIDE.md)
+Full step-by-step: [docs/deploy/PRODUCTION_GUIDE.md](docs/deploy/PRODUCTION_GUIDE.md)
 
 ---
 
@@ -115,7 +181,7 @@ docker compose -f deploy/docker-compose.yml --env-file .env up -d
 - Dashboard: `http://localhost:8080/`
 - Health: `http://localhost:8080/actuator/health`
 
-**For real production** (Vultr Postgres + Docker Valkey + GHCR image), use the 5-step guide above.
+**For real production**, use the 5-step guide above.
 
 ## Configuration
 
