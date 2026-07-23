@@ -137,7 +137,7 @@ Pre-built artifacts (after the first `v*` release tag):
 
 ```bash
 # Frontend (Vue 3 / React / Svelte / plain JS)
-npm install livescreenlog rrweb
+npm install livescreenlog
 ```
 
 ```js
@@ -154,7 +154,7 @@ LiveScreenLog.setTags({ dept: user.dept });
 
 CDN (no build tool):
 ```html
-<script src="https://cdn.jsdelivr.net/npm/livescreenlog@0.1.0/dist/livescreenlog.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/livescreenlog@0.1.1/dist/livescreenlog.js"></script>
 <script>
   LiveScreenLog.init({ dsn: '...', apiKey: '...', id: 'user-001' });
 </script>
