@@ -1,0 +1,70 @@
+# Reference stack for local / beta evaluation.
+# Operators should adapt networking, secrets, TLS, and resource limits.
+# Docs: docs/deploy/DEPLOY.md
+#
+# From repository root:
+#   cp .env.example .env
+#   ./gradlew bootJar
+#   docker compose -f deploy/docker-compose.yml --env-file .env up -d --build
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: livescreenlog-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ${DB_USER:-livescreenlog_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-livescreenlog_password}
+      POSTGRES_DB: ${DB_NAME:-livescreenlog}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  valkey:
+    image: valkey/valkey:alpine
+    container_name: livescreenlog-valkey
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: livescreenlog:local
+    container_name: livescreenlog-app
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-livescreenlog}
+      DB_USER: ${DB_USER:-livescreenlog_user}
+      DB_PASSWORD: ${DB_PASSWORD:-livescreenlog_password}
+      REDIS_HOST: valkey
+      REDIS_PORT: 6379
+      LIVESCREENLOG_HMAC_SECRET: ${LIVESCREENLOG_HMAC_SECRET:-prod-hmac-secret-must-be-at-least-32-chars-long!!}
+      LIVESCREENLOG_DASHBOARD_ENABLED: ${LIVESCREENLOG_DASHBOARD_ENABLED:-false}
+      LIVESCREENLOG_ALLOWED_CAPTURE_ORIGINS: ${LIVESCREENLOG_ALLOWED_CAPTURE_ORIGINS:-http://localhost:8080,http://127.0.0.1:8080}
+      LIVESCREENLOG_RETENTION_DAYS: ${LIVESCREENLOG_RETENTION_DAYS:-30}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
