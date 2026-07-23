@@ -43,13 +43,16 @@ Full jar (builds FE + SDK into static resources):
 ./gradlew bootJar
 ```
 
-## Version sync
+## Version sync & release artifacts
 
 `version.json` is the source of truth. After changing it:
 
 ```bash
-./release.sh
+./release.sh --sync-only   # metadata only
+./release.sh               # sync + local JAR/JS into dist/release/
 ```
+
+Publishing binaries: tag `vX.Y.Z` (must match `version.json`) and push — CI creates a [GitHub Release](https://github.com/0xdc05f/livescreenlog/releases). See [docs/release/RELEASE.md](docs/release/RELEASE.md).
 
 ## Pull requests
 

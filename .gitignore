@@ -8,6 +8,7 @@ HELP.md
 build/
 bin/
 out/
+dist/
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/build/
 !**/src/test/**/build/

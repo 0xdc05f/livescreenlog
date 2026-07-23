@@ -1,0 +1,119 @@
+# Build distributable artifacts and publish a GitHub Release on version tags.
+# Tag format: v1.0.0 (must match version.json)
+#
+#   git tag -a v1.0.0 -m "v1.0.0"
+#   git push origin v1.0.0
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & publish
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            sdk/package-lock.json
+
+      - name: Read version
+        id: ver
+        run: |
+          VERSION=$(node -p "require('./version.json').version")
+          TAG="${GITHUB_REF_NAME}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "Resolved version.json=${VERSION} tag=${TAG}"
+          if [ "v${VERSION}" != "${TAG}" ]; then
+            echo "::error::Tag ${TAG} must equal v${VERSION} from version.json"
+            exit 1
+          fi
+
+      - name: Sync package versions
+        run: ./release.sh --sync-only
+
+      - name: Build server JAR (+ dashboard + SDK static)
+        run: ./gradlew bootJar -x test --no-daemon
+
+      - name: Build browser SDK packages
+        working-directory: sdk
+        run: |
+          npm ci
+          npm run build
+
+      - name: Stage release assets
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.ver.outputs.version }}"
+          mkdir -p dist/release
+          JAR=$(ls build/libs/livescreenlog-*.jar | head -1)
+          cp "$JAR" "dist/release/livescreenlog-${VERSION}.jar"
+          cp sdk/dist/livescreenlog.js "dist/release/livescreenlog-${VERSION}.js"
+          # Stable names for /releases/latest/download/…
+          cp "dist/release/livescreenlog-${VERSION}.jar" dist/release/livescreenlog.jar
+          cp "dist/release/livescreenlog-${VERSION}.js" dist/release/livescreenlog.js
+          (
+            cd dist/release
+            sha256sum livescreenlog-${VERSION}.jar livescreenlog-${VERSION}.js \
+              livescreenlog.jar livescreenlog.js > SHA256SUMS.txt
+          )
+          ls -la dist/release
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.ver.outputs.tag }}
+          name: LiveScreenLog ${{ steps.ver.outputs.version }}
+          generate_release_notes: true
+          body: |
+            ## Downloads · 다운로드
+
+            | Artifact | Description |
+            |----------|-------------|
+            | `livescreenlog.jar` | Server (dashboard + embedded SDK) · 서버 JAR |
+            | `livescreenlog.js` | Browser UMD bundle · 브라우저 스크립트 |
+            | `livescreenlog-${{ steps.ver.outputs.version }}.jar` | Versioned JAR |
+            | `livescreenlog-${{ steps.ver.outputs.version }}.js` | Versioned JS |
+            | `SHA256SUMS.txt` | Checksums |
+
+            **Latest stable links** (always point at this channel’s newest release assets with stable names):
+
+            - JAR: https://github.com/0xdc05f/livescreenlog/releases/latest/download/livescreenlog.jar
+            - JS: https://github.com/0xdc05f/livescreenlog/releases/latest/download/livescreenlog.js
+
+            ## Run · 실행
+
+            ```bash
+            # requires JRE 21, PostgreSQL, Valkey/Redis — see Manual.md
+            java -jar livescreenlog.jar
+            ```
+
+            Docs: [Manual.md](https://github.com/0xdc05f/livescreenlog/blob/main/Manual.md) · [docs/deploy/DEPLOY.md](https://github.com/0xdc05f/livescreenlog/blob/main/docs/deploy/DEPLOY.md)
+          files: |
+            dist/release/livescreenlog.jar
+            dist/release/livescreenlog.js
+            dist/release/livescreenlog-${{ steps.ver.outputs.version }}.jar
+            dist/release/livescreenlog-${{ steps.ver.outputs.version }}.js
+            dist/release/SHA256SUMS.txt
