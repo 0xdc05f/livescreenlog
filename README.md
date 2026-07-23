@@ -33,8 +33,6 @@ docker compose -f deploy/docker-compose.yml up -d postgres valkey
 |----------|-----|
 | Health | http://localhost:8080/actuator/health |
 | Dashboard | http://localhost:8080/ |
-| Sample capture pages | http://localhost:8080/sample.html (after a full build that copies static assets) |
-
 ### Full stack (reference compose)
 
 `deploy/` holds **example** Docker files — adapt for your environment. Guide: [docs/deploy/DEPLOY.md](docs/deploy/DEPLOY.md).
@@ -78,7 +76,6 @@ Details: `docs/security/SECURITY.md`, `docs/deploy/DEPLOY.md`, `src/main/resourc
 ├── sdk/                   Browser capture SDK (@livescreenlog/browser)
 ├── deploy/                Reference Dockerfile + compose (not the only way)
 ├── docs/                  Architecture, API, security, deploy guide
-├── sample*.html           Demo capture pages (repo root)
 └── .env.example           Env template (no real secrets)
 ```
 

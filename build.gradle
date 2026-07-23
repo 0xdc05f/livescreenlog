@@ -111,12 +111,13 @@ task copySdkToStatic(type: Copy) {
     // Copy built SDK
     from("$sdkDir/dist/livescreenlog.js")
     
-    // Copy sample pages from project root
+    // Optional local-only sample pages (gitignored; copy if present)
     from("$projectDir") {
         include "sample-*.html"
         include "sample.html"
     }
-    
+    includeEmptyDirs = false
+
     into "$projectDir/src/main/resources/static"
 }
 

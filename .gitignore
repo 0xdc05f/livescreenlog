@@ -127,6 +127,10 @@ walkthrough.md
 tasks/
 .github/modernize/
 
+# --- Local-only demo pages (not published) ---
+/sample.html
+/sample-*.html
+
 # --- Logs, coverage, temp ---
 *.log
 logs/
