@@ -4,6 +4,117 @@ Self-hosted **session replay** server: capture browser sessions with rrweb, stor
 
 Java 21 · Spring Boot 4.x · PostgreSQL 16+ · Valkey/Redis · Svelte dashboard · Browser SDK
 
+---
+
+## 🚀 Real Production Setup (5 steps — this is the recommended way)
+
+**Postgres + Valkey + one Docker image = done.**
+
+1. Pull and run PostgreSQL:
+   ```bash
+   docker pull postgres:16-alpine
+   docker run -d --name postgres \
+     -e POSTGRES_USER=postgres \
+     -e POSTGRES_PASSWORD=your-strong-db-password \
+     -e POSTGRES_DB=livescreenlog \
+     -p 5432:5432 \
+     postgres:16-alpine
+   ```
+
+2. Pull and run Valkey:
+   ```bash
+   docker pull valkey/valkey:alpine
+   docker run -d --name valkey -p 6379:6379 valkey/valkey:alpine
+   ```
+
+3. Run LiveScreenLog (published image, no build needed):
+   ```bash
+   docker run -d \
+     -p 8080:8080 \
+     -e SPRING_PROFILES_ACTIVE=prod \
+     -e DB_HOST=localhost \
+     -e DB_PORT=5432 \
+     -e DB_NAME=livescreenlog \
+     -e DB_USER=postgres \
+     -e DB_PASSWORD=your-strong-db-password \
+     -e REDIS_HOST=localhost \
+     -e REDIS_PORT=6379 \
+     -e LIVESCREENLOG_HMAC_SECRET='a-very-strong-random-string-at-least-32-chars' \
+     -e LIVESCREENLOG_ALLOWED_CAPTURE_ORIGINS='https://your-site.com,https://admin.your-site.com' \
+     ghcr.io/livescreenlog/server:0.1.0
+   ```
+
+   Or use Docker Compose (recommended for local/production testing):
+   ```yaml
+   # docker-compose.yml
+   services:
+     postgres:
+       image: postgres:16-alpine
+       environment:
+         POSTGRES_USER: postgres
+         POSTGRES_PASSWORD: your-strong-db-password
+         POSTGRES_DB: livescreenlog
+       ports:
+         - "5432:5432"
+       healthcheck:
+         test: ["CMD-SHELL", "pg_isready -U postgres"]
+         interval: 5s
+         timeout: 5s
+         retries: 5
+
+     valkey:
+       image: valkey/valkey:alpine
+       ports:
+         - "6379:6379"
+       healthcheck:
+         test: ["CMD", "valkey-cli", "ping"]
+         interval: 5s
+         timeout: 5s
+         retries: 5
+
+     app:
+       image: ghcr.io/livescreenlog/server:0.1.0
+       depends_on:
+         postgres:
+           condition: service_healthy
+         valkey:
+           condition: service_healthy
+       ports:
+         - "8080:8080"
+       environment:
+         SPRING_PROFILES_ACTIVE: prod
+         DB_HOST: postgres
+         DB_PORT: 5432
+         DB_NAME: livescreenlog
+         DB_USER: postgres
+         DB_PASSWORD: your-strong-db-password
+         REDIS_HOST: valkey
+         REDIS_PORT: 6379
+         LIVESCREENLOG_HMAC_SECRET: 'a-very-strong-random-string-at-least-32-chars'
+         LIVESCREENLOG_ALLOWED_CAPTURE_ORIGINS: 'https://your-site.com,https://admin.your-site.com'
+   ```
+   Then run:
+   ```bash
+   docker compose up -d
+   ```
+
+4. Open the dashboard → **Settings → Project Management** → create a project and **copy the API Key**.
+
+5. Use it in your frontend:
+   ```js
+   import { LiveScreenLog } from 'livescreenlog';
+   LiveScreenLog.init({
+     apiKey: 'YOUR_API_KEY',
+     dsn: 'https://your-livescreenlog-host',
+     id: user.id,
+   });
+   ```
+
+**That's literally it.**
+
+Full step-by-step: [docs/deploy/PRODUCTION_GUIDE.md](docs/deploy/PRODUCTION_GUIDE.md)
+
+---
 
 ## Features
 
@@ -21,7 +132,33 @@ Pre-built artifacts (after the first `v*` release tag):
 |----------|--------|
 | Server JAR | [livescreenlog.jar](https://github.com/0xdc05f/livescreenlog/releases/latest/download/livescreenlog.jar) |
 | Browser JS | [livescreenlog.js](https://github.com/0xdc05f/livescreenlog/releases/latest/download/livescreenlog.js) |
+| npm SDK | [`npm i livescreenlog`](https://www.npmjs.com/package/livescreenlog) |
 | All versions | [Releases](https://github.com/0xdc05f/livescreenlog/releases) |
+
+```bash
+# Frontend (Vue 3 / React / Svelte / plain JS)
+npm install livescreenlog rrweb
+```
+
+```js
+// Vue 3 example
+import { LiveScreenLog } from 'livescreenlog';
+
+LiveScreenLog.init({
+  dsn: 'https://your-livescreenlog-host',
+  apiKey: 'YOUR_PROJECT_API_KEY',
+  id: user.id,
+});
+LiveScreenLog.setTags({ dept: user.dept });
+```
+
+CDN (no build tool):
+```html
+<script src="https://cdn.jsdelivr.net/npm/livescreenlog@0.1.0/dist/livescreenlog.js"></script>
+<script>
+  LiveScreenLog.init({ dsn: '...', apiKey: '...', id: 'user-001' });
+</script>
+```
 
 ```bash
 curl -fsSL -o livescreenlog.jar \
@@ -32,59 +169,39 @@ java -jar livescreenlog.jar
 
 Maintainers: [docs/release/RELEASE.md](docs/release/RELEASE.md) · tag `vX.Y.Z` runs CI publish.
 
-## Quick start
-
-### Requirements
-
-- Java 21+ (JRE enough to run a built jar; JDK to build)
-- Docker (optional — for Postgres + Valkey)
-- Node.js 20+ (only if you rebuild frontend/SDK)
-
-### Run from source
+## Quick start (local test only)
 
 ```bash
-cp .env.example .env   # optional; set secrets for non-default local runs
-docker compose -f deploy/docker-compose.yml up -d postgres valkey
-./gradlew bootRun
-```
-
-| Endpoint | URL |
-|----------|-----|
-| Health | http://localhost:8080/actuator/health |
-| Dashboard | http://localhost:8080/ |
-### Full stack (reference compose)
-
-`deploy/` holds **example** Docker files — adapt for your environment. Guide: [docs/deploy/DEPLOY.md](docs/deploy/DEPLOY.md).
-
-```bash
+git clone https://github.com/0xdc05f/livescreenlog.git
+cd livescreenlog
 cp .env.example .env
-# set LIVESCREENLOG_HMAC_SECRET (32+ chars) and LIVESCREENLOG_ALLOWED_CAPTURE_ORIGINS
-./gradlew bootJar
-docker compose -f deploy/docker-compose.yml --env-file .env up -d --build
+docker compose -f deploy/docker-compose.yml --env-file .env up -d
 ```
 
-### Build a release jar
+- Dashboard: `http://localhost:8080/`
+- Health: `http://localhost:8080/actuator/health`
 
-```bash
-./gradlew bootJar
-# artifact: build/libs/*.jar
-```
-
-This builds the Svelte frontend and browser SDK, then packs them into Spring static resources.
+**For real production**, use the 5-step guide above.
 
 ## Configuration
 
-Copy `.env.example` → `.env`. Important variables:
+Copy `.env.example` → `.env`. **Never commit real secrets.**
 
-| Variable | Purpose |
-|----------|---------|
-| `LIVESCREENLOG_HMAC_SECRET` | Signing secret for session tokens (**required strong value in prod**) |
-| `LIVESCREENLOG_ALLOWED_CAPTURE_ORIGINS` | CORS allow-list (no `*` in prod) |
-| `LIVESCREENLOG_PROJECT_KEY` | Optional global fallback project key |
-| `LIVESCREENLOG_RETENTION_DAYS` | Auto-delete old sessions (default `30`; `0` disables) |
-| `DB_*` / `REDIS_*` | Used by `prod` profile and Docker app service |
+| Variable | Purpose | Editable in Dashboard |
+|----------|---------|-----------------------|
+| `LIVESCREENLOG_HMAC_SECRET` | Signing secret for session tokens (**required strong value in prod**) | **No** — env only |
+| `LIVESCREENLOG_ALLOWED_CAPTURE_ORIGINS` | CORS allow-list (no `*` in prod) | **Yes** (Settings → Server Config) |
+| `LIVESCREENLOG_PROJECT_KEY` | Optional global fallback project key | **Yes** |
+| `LIVESCREENLOG_RETENTION_DAYS` | Auto-delete old sessions (default `30`; `0` disables) | **Yes** |
+| `DB_*` / `REDIS_*` | Database and cache (prod profile) | No |
 
-Details: `docs/security/SECURITY.md`, `docs/deploy/DEPLOY.md`, `src/main/resources/application*.yml`.
+**Live settings UI**: Dashboard → Settings → **Server Config** (retention, CORS origins, global project key). Changes take effect immediately without restart.
+
+HMAC secret and database credentials must always come from environment / secret manager.
+
+Full bilingual guide (한국어 + English): [Manual.md](Manual.md)
+
+Details: `docs/security/SECURITY.md`, `docs/deploy/DEPLOY.md`.
 
 ## Project layout
 
@@ -92,7 +209,7 @@ Details: `docs/security/SECURITY.md`, `docs/deploy/DEPLOY.md`, `src/main/resourc
 ├── src/main/java          Spring Boot server
 ├── src/main/resources     Config, Flyway
 ├── frontend/              Svelte dashboard (Vite)
-├── sdk/                   Browser capture SDK (@livescreenlog/browser)
+├── sdk/                   Browser capture SDK (livescreenlog)
 ├── deploy/                Reference Dockerfile + compose (not the only way)
 ├── docs/                  Architecture, API, security, deploy, release
 ├── .github/workflows/     CI — tag v* → GitHub Release (JAR + JS)
@@ -103,11 +220,13 @@ Details: `docs/security/SECURITY.md`, `docs/deploy/DEPLOY.md`, `src/main/resourc
 
 ## Documentation
 
+**한국어 + English 풀 매뉴얼**: [Manual.md](Manual.md) — 운영자 가이드, 연동, 보안, 배포를 모두 담고 있습니다.
+
 | Doc | Description |
 |-----|-------------|
-| [Manual.md](Manual.md) | **User manual (한국어 + English)** |
+| [Manual.md](Manual.md) | **Full bilingual manual (한국어 + English)** — 운영, 설정, 연동, 보안, 배포 |
 | [docs/release/RELEASE.md](docs/release/RELEASE.md) | Versioning, tags, GitHub Release artifacts |
-| [docs/deploy/DEPLOY.md](docs/deploy/DEPLOY.md) | **Beta / self-host deploy reference** |
+| [docs/deploy/DEPLOY.md](docs/deploy/DEPLOY.md) | Self-host deploy reference |
 | [docs/api/API.md](docs/api/API.md) | HTTP API |
 | [docs/architecture/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md) | Components & data flow |
 | [docs/schema/SCHEMA.md](docs/schema/SCHEMA.md) | PostgreSQL schema |
