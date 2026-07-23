@@ -87,6 +87,7 @@ Details: `docs/security/SECURITY.md`, `docs/deploy/DEPLOY.md`, `src/main/resourc
 
 | Doc | Description |
 |-----|-------------|
+| [Manual.md](Manual.md) | **User manual (한국어 + English)** |
 | [docs/deploy/DEPLOY.md](docs/deploy/DEPLOY.md) | **Beta / self-host deploy reference** |
 | [docs/api/API.md](docs/api/API.md) | HTTP API |
 | [docs/architecture/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md) | Components & data flow |
