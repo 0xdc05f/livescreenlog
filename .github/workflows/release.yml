@@ -1,8 +1,8 @@
 # Build distributable artifacts and publish a GitHub Release on version tags.
-# Tag format: v1.0.0 (must match version.json)
+# Tag format: v0.1.0 (must match version.json)
 #
-#   git tag -a v1.0.0 -m "v1.0.0"
-#   git push origin v1.0.0
+#   git tag -a v0.1.0 -m "v0.1.0"
+#   git push origin v0.1.0
 
 name: Release
 

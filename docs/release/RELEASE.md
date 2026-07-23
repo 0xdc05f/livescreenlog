@@ -28,13 +28,13 @@ version.json          ← edit this
 ```
 
 Tag must match: **`v` + version.json**  
-Example: `"version": "1.0.0"` → tag `v1.0.0`.
+Example: `"version": "0.1.0"` → tag `v0.1.0` (beta-style until 1.0.0).
 
 ## Local release prep · 로컬 준비
 
 ```bash
 # 1) Bump version
-# edit version.json → "1.0.1"
+# edit version.json → "0.1.0" (or 0.1.1, …)
 
 # 2) Sync metadata + optional local build
 ./release.sh --sync-only     # versions only
@@ -42,14 +42,14 @@ Example: `"version": "1.0.0"` → tag `v1.0.0`.
 
 # 3) Commit on develop, merge to main (as you prefer)
 git add version.json build.gradle sdk/package.json frontend/package.json
-git commit -m "chore: release 1.0.1"
+git commit -m "chore: release 0.1.0"
 git push origin develop
 # merge to main…
 
 # 4) Tag from the commit you want to ship (usually main)
 git checkout main && git pull
-git tag -a v1.0.1 -m "v1.0.1"
-git push origin v1.0.1
+git tag -a v0.1.0 -m "v0.1.0"
+git push origin v0.1.0
 ```
 
 Pushing the tag runs [`.github/workflows/release.yml`](../../.github/workflows/release.yml):
@@ -69,9 +69,9 @@ Pushing the tag runs [`.github/workflows/release.yml`](../../.github/workflows/r
 | Releases page | https://github.com/0xdc05f/livescreenlog/releases |
 | Latest JAR | https://github.com/0xdc05f/livescreenlog/releases/latest/download/livescreenlog.jar |
 | Latest JS | https://github.com/0xdc05f/livescreenlog/releases/latest/download/livescreenlog.js |
-| Specific version | `…/releases/download/v1.0.0/livescreenlog-1.0.0.jar` |
+| Specific version | `…/releases/download/v0.1.0/livescreenlog-0.1.0.jar` |
 
-Until the first tag is pushed, “latest” links 404 — cut `v1.0.0` when ready.
+Until the first tag is pushed, “latest” links 404 — cut `v0.1.0` (or next beta) when ready.
 
 ## npm (optional) · npm (선택)
 
@@ -87,7 +87,7 @@ Prefer publishing the same version as the git tag. Not required for self-host: o
 
 ```bash
 ./gradlew bootJar
-docker build -f deploy/Dockerfile -t ghcr.io/0xdc05f/livescreenlog:1.0.0 .
+docker build -f deploy/Dockerfile -t ghcr.io/0xdc05f/livescreenlog:0.1.0 .
 ```
 
 Automating GHCR push can be added to the release workflow later.
