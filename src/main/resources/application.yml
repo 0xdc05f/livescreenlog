@@ -1,0 +1,64 @@
+spring:
+  application:
+    name: livescreenlog
+  profiles:
+    active: dev
+  threads:
+    virtual:
+      enabled: true
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  data:
+    web:
+      pageable:
+        max-page-size: 100
+        default-page-size: 20
+  servlet:
+    multipart:
+      max-file-size: 2MB
+      max-request-size: 2MB
+
+server:
+  tomcat:
+    max-http-form-post-size: 2MB
+    max-swallow-size: 2MB
+  max-http-request-header-size: 16KB
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when_authorized
+
+livescreenlog:
+  security:
+    hmac-secret: ${LIVESCREENLOG_HMAC_SECRET:default-hmac-secret-key-that-needs-to-be-at-least-256-bits-long}
+    project-key: ${LIVESCREENLOG_PROJECT_KEY:default-project-key}
+    allowed-capture-origins: ${LIVESCREENLOG_ALLOWED_CAPTURE_ORIGINS:*}
+    dashboard-enabled: ${LIVESCREENLOG_DASHBOARD_ENABLED:false}
+    dashboard-username: ${LIVESCREENLOG_DASHBOARD_USERNAME:admin}
+    dashboard-password: ${LIVESCREENLOG_DASHBOARD_PASSWORD:admin-password-need-to-change}
+  retention:
+    days: ${LIVESCREENLOG_RETENTION_DAYS:30}
+  rate-limit:
+    session-create-per-minute: ${LIVESCREENLOG_RATE_LIMIT_CREATE:60}
+    event-append-per-minute: ${LIVESCREENLOG_RATE_LIMIT_EVENTS:600}
+  limits:
+    max-event-batch-size: ${LIVESCREENLOG_MAX_EVENT_BATCH:500}
+    max-event-payload-bytes: ${LIVESCREENLOG_MAX_EVENT_PAYLOAD_BYTES:1048576}
+    default-event-page-size: 2000
+    max-event-page-size: 5000
+    max-event-full-dump-size: 10000
+    max-search-page-size: 100
+    heartbeat-throttle-seconds: 30
+    max-live-sse-per-session: 20
+    max-push-sse-per-user: 5
+    max-push-sse-total: 5000

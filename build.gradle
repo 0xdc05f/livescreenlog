@@ -1,0 +1,126 @@
+plugins {
+	id 'java'
+	id 'org.springframework.boot' version '4.1.0'
+	id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'com.livescreenlog'
+version = '1.0.0'
+description = 'Session Replay Server'
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(21)
+	}
+}
+
+repositories {
+	mavenCentral()
+}
+
+dependencies {
+	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+	implementation 'org.springframework.boot:spring-boot-starter-security'
+	implementation 'org.springframework.boot:spring-boot-starter-web'
+	implementation 'org.springframework.boot:spring-boot-starter-actuator'
+	implementation 'com.fasterxml.jackson.core:jackson-databind'
+	implementation 'org.springframework.boot:spring-boot-starter-flyway'
+	implementation 'org.flywaydb:flyway-database-postgresql'
+	compileOnly 'org.projectlombok:lombok'
+	implementation 'org.postgresql:postgresql'
+	annotationProcessor 'org.projectlombok:lombok'
+	testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
+	testImplementation 'org.springframework.boot:spring-boot-starter-data-redis-test'
+	testImplementation 'org.springframework.boot:spring-boot-starter-security-test'
+	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+	testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+	testImplementation 'org.testcontainers:junit-jupiter:1.20.6'
+	testImplementation 'org.testcontainers:postgresql:1.20.6'
+	testImplementation 'org.testcontainers:testcontainers:1.20.6'
+	testCompileOnly 'org.projectlombok:lombok'
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+	testAnnotationProcessor 'org.projectlombok:lombok'
+	implementation 'org.apache.commons:commons-pool2'
+}
+
+tasks.named('test') {
+	useJUnitPlatform()
+}
+
+jar {
+    enabled = false
+}
+
+def frontendDir = "$projectDir/frontend"
+
+task npmInstall(type: Exec) {
+    workingDir frontendDir
+    inputs.file "$frontendDir/package.json"
+    outputs.dir "$frontendDir/node_modules"
+    if (System.getProperty('os.name').toLowerCase(Locale.ROOT).contains('windows')) {
+        commandLine 'npm.cmd', 'install'
+    } else {
+        commandLine 'npm', 'install'
+    }
+}
+
+task npmBuild(type: Exec) {
+    dependsOn npmInstall
+    workingDir frontendDir
+    inputs.dir "$frontendDir/src"
+    inputs.file "$frontendDir/package.json"
+    outputs.dir "$projectDir/src/main/resources/static"
+    if (System.getProperty('os.name').toLowerCase(Locale.ROOT).contains('windows')) {
+        commandLine 'npm.cmd', 'run', 'build'
+    } else {
+        commandLine 'npm', 'run', 'build'
+    }
+}
+
+def sdkDir = "$projectDir/sdk"
+
+task sdkNpmInstall(type: Exec) {
+    workingDir sdkDir
+    inputs.file "$sdkDir/package.json"
+    outputs.dir "$sdkDir/node_modules"
+    if (System.getProperty('os.name').toLowerCase(Locale.ROOT).contains('windows')) {
+        commandLine 'npm.cmd', 'install'
+    } else {
+        commandLine 'npm', 'install'
+    }
+}
+
+task sdkBuild(type: Exec) {
+    dependsOn sdkNpmInstall
+    workingDir sdkDir
+    inputs.dir "$sdkDir/src"
+    inputs.file "$sdkDir/package.json"
+    outputs.dir "$sdkDir/dist"
+    if (System.getProperty('os.name').toLowerCase(Locale.ROOT).contains('windows')) {
+        commandLine 'npm.cmd', 'run', 'build'
+    } else {
+        commandLine 'npm', 'run', 'build'
+    }
+}
+
+task copySdkToStatic(type: Copy) {
+    dependsOn sdkBuild
+    mustRunAfter npmBuild
+    
+    // Copy built SDK
+    from("$sdkDir/dist/livescreenlog.js")
+    
+    // Copy sample pages from project root
+    from("$projectDir") {
+        include "sample-*.html"
+        include "sample.html"
+    }
+    
+    into "$projectDir/src/main/resources/static"
+}
+
+processResources.dependsOn npmBuild
+processResources.dependsOn copySdkToStatic
+
+
