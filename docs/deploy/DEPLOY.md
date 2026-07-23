@@ -108,7 +108,6 @@ Multi-stage “build inside Docker” images are fine for your org — treat thi
 |-------|-----|
 | Health | `GET /actuator/health` |
 | Dashboard | `GET /` |
-| Sample pages | `GET /sample.html` (if included in the jar static assets) |
 
 ## 7. Operator checklist (beta)
 

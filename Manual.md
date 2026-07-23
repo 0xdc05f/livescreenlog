@@ -87,13 +87,12 @@ docker compose -f deploy/docker-compose.yml up -d postgres valkey
 |--------------|-----|
 | Health | http://localhost:8080/actuator/health |
 | Dashboard · 대시보드 | http://localhost:8080/ |
-| Sample pages · 샘플 | http://localhost:8080/sample.html *(after full jar/static build)* |
 
 **KO**  
-`bootRun`만으로는 샘플/대시보드 정적 파일이 비어 있을 수 있습니다. 전체 정적 자산이 필요하면 `./gradlew bootJar` 또는 `copySdkToStatic` 후 실행하세요.
+대시보드 정적 자산이 비어 있으면 `./gradlew bootJar` 또는 `copySdkToStatic` 후 실행하세요.
 
 **EN**  
-With `bootRun` alone, static dashboard/sample assets may be missing until you run `./gradlew bootJar` (or `copySdkToStatic`).
+If the dashboard static assets are missing, run `./gradlew bootJar` (or `copySdkToStatic`) first.
 
 ### 3.2 Full stack (reference compose) · 전체 스택 예시
 
@@ -281,17 +280,15 @@ SDK 기본값은 `maskAllInputs: true`입니다.
 Add `class="livescreenlog-block"` on sensitive UI to block capture.  
 SDK defaults include `maskAllInputs: true`.
 
-### 7.5 Sample pages · 샘플 페이지
+### 7.5 Local demos · 로컬 데모
 
-| File · 파일 | Purpose · 용도 |
-|-------------|----------------|
-| `sample.html` | General integration · 일반 연동 |
-| `sample-a.html` | Mode A (allow-list users) · 지정 사용자 |
-| `sample-b.html` | Mode B (remote trigger) · 원격 트리거 |
-| `sample-c.html` | Mode C (error trigger) · 에러 트리거 |
-| `sample-all.html` | Combined demos · 통합 데모 |
+**KO**  
+루트 `sample*.html`은 **로컬 전용**(gitignore)입니다. 공개 저장소에는 포함되지 않습니다.  
+있을 경우 빌드 시 static으로 복사되어 `/sample.html` 등으로 제공될 수 있습니다.
 
-Served from the app after build · 빌드 후 앱에서 제공: `/sample.html` 등.
+**EN**  
+Root `sample*.html` files are **local-only** (gitignored) and are not published.  
+If present, the build may copy them into static assets (`/sample.html`, etc.).
 
 ---
 
