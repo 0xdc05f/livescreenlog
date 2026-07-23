@@ -10,8 +10,8 @@
 
 ### Downloads · 다운로드
 
-**KO** · 빌드 없이 쓰려면 GitHub Releases에서 받으세요. 첫 태그(`v1.0.0`) 이후 링크가 활성화됩니다.  
-**EN** · Prefer pre-built artifacts from GitHub Releases (available after the first `v*` tag).
+**KO** · 빌드 없이 쓰려면 GitHub Releases에서 받으세요. 베타 태그(`v0.1.0` 등) 이후 링크가 활성화됩니다.  
+**EN** · Prefer pre-built artifacts from GitHub Releases (available after the first beta `v*` tag, e.g. `v0.1.0`).
 
 | Artifact · 산출물 | Latest · 최신 | Notes · 설명 |
 |-------------------|---------------|--------------|
@@ -285,7 +285,7 @@ Dashboard → Settings → Projects: create a project and copy the **API Key**.
 
 ```html
 <script src="https://YOUR-LSL-HOST/livescreenlog.js"></script>
-<!-- or: https://github.com/0xdc05f/livescreenlog/releases/download/v1.0.0/livescreenlog-1.0.0.js -->
+<!-- or: https://github.com/0xdc05f/livescreenlog/releases/download/v0.1.0/livescreenlog-0.1.0.js -->
 <script>
   LiveScreenLog.init({
     apiKey: 'YOUR_PROJECT_API_KEY',
