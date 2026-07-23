@@ -14,6 +14,25 @@ Java 21 · Spring Boot 4.x · PostgreSQL 16+ · Valkey/Redis · Svelte dashboard
 - **Recording modes** — project policies (e.g. always-on / error / on-demand push)
 - **Privacy defaults** — input masking, retention job, rate limits, prod fail-fast on weak secrets
 
+## Downloads
+
+Pre-built artifacts (after the first `v*` release tag):
+
+| Artifact | Latest |
+|----------|--------|
+| Server JAR | [livescreenlog.jar](https://github.com/0xdc05f/livescreenlog/releases/latest/download/livescreenlog.jar) |
+| Browser JS | [livescreenlog.js](https://github.com/0xdc05f/livescreenlog/releases/latest/download/livescreenlog.js) |
+| All versions | [Releases](https://github.com/0xdc05f/livescreenlog/releases) |
+
+```bash
+curl -fsSL -o livescreenlog.jar \
+  https://github.com/0xdc05f/livescreenlog/releases/latest/download/livescreenlog.jar
+# JRE 21 + Postgres + Valkey/Redis + env — see Manual.md
+java -jar livescreenlog.jar
+```
+
+Maintainers: [docs/release/RELEASE.md](docs/release/RELEASE.md) · tag `vX.Y.Z` runs CI publish.
+
 ## Quick start
 
 ### Requirements
@@ -22,7 +41,7 @@ Java 21 · Spring Boot 4.x · PostgreSQL 16+ · Valkey/Redis · Svelte dashboard
 - Docker (optional — for Postgres + Valkey)
 - Node.js 20+ (only if you rebuild frontend/SDK)
 
-### Run locally
+### Run from source
 
 ```bash
 cp .env.example .env   # optional; set secrets for non-default local runs
@@ -76,7 +95,10 @@ Details: `docs/security/SECURITY.md`, `docs/deploy/DEPLOY.md`, `src/main/resourc
 ├── frontend/              Svelte dashboard (Vite)
 ├── sdk/                   Browser capture SDK (@livescreenlog/browser)
 ├── deploy/                Reference Dockerfile + compose (not the only way)
-├── docs/                  Architecture, API, security, deploy guide
+├── docs/                  Architecture, API, security, deploy, release
+├── .github/workflows/     CI — tag v* → GitHub Release (JAR + JS)
+├── version.json           Release version pin
+├── release.sh             Sync versions + local artifact build
 └── .env.example           Env template (no real secrets)
 ```
 
@@ -85,6 +107,7 @@ Details: `docs/security/SECURITY.md`, `docs/deploy/DEPLOY.md`, `src/main/resourc
 | Doc | Description |
 |-----|-------------|
 | [Manual.md](Manual.md) | **User manual (한국어 + English)** |
+| [docs/release/RELEASE.md](docs/release/RELEASE.md) | Versioning, tags, GitHub Release artifacts |
 | [docs/deploy/DEPLOY.md](docs/deploy/DEPLOY.md) | **Beta / self-host deploy reference** |
 | [docs/api/API.md](docs/api/API.md) | HTTP API |
 | [docs/architecture/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md) | Components & data flow |

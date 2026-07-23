@@ -8,6 +8,35 @@
 > Version aligned with repo `version.json` · License: MIT  
 > Repo: https://github.com/0xdc05f/livescreenlog
 
+### Downloads · 다운로드
+
+**KO** · 빌드 없이 쓰려면 GitHub Releases에서 받으세요. 첫 태그(`v1.0.0`) 이후 링크가 활성화됩니다.  
+**EN** · Prefer pre-built artifacts from GitHub Releases (available after the first `v*` tag).
+
+| Artifact · 산출물 | Latest · 최신 | Notes · 설명 |
+|-------------------|---------------|--------------|
+| **Server JAR** | [livescreenlog.jar](https://github.com/0xdc05f/livescreenlog/releases/latest/download/livescreenlog.jar) | JRE 21 + Postgres + Valkey/Redis |
+| **Browser JS** | [livescreenlog.js](https://github.com/0xdc05f/livescreenlog/releases/latest/download/livescreenlog.js) | UMD · `window.LiveScreenLog` |
+| **All releases** | [Releases page](https://github.com/0xdc05f/livescreenlog/releases) | Versioned JAR/JS + `SHA256SUMS.txt` |
+| **npm SDK** (optional) | [`@livescreenlog/browser`](https://www.npmjs.com/package/@livescreenlog/browser) | Publish optional; or use JS / self-hosted `/livescreenlog.js` |
+
+```bash
+# Operator · 운영자 — download JAR and run (after configuring DB/Redis/env)
+curl -fsSL -o livescreenlog.jar \
+  https://github.com/0xdc05f/livescreenlog/releases/latest/download/livescreenlog.jar
+java -jar livescreenlog.jar
+```
+
+```html
+<!-- Integrator · 연동 — pin a version or use your server’s /livescreenlog.js -->
+<script src="https://github.com/0xdc05f/livescreenlog/releases/latest/download/livescreenlog.js"></script>
+```
+
+**KO** · 프로덕션 연동은 가급적 **자체 서버**의 `/livescreenlog.js` 또는 버전 고정 Release URL을 쓰세요.  
+**EN** · In production, prefer your server’s `/livescreenlog.js` or a **version-pinned** Release URL.
+
+Release process for maintainers · 배포 절차: [docs/release/RELEASE.md](docs/release/RELEASE.md)
+
 ---
 
 ## Table of contents · 목차
@@ -72,6 +101,24 @@ Node.js 20+ (rebuild FE/SDK), Gradle Wrapper (`./gradlew`)
 ---
 
 ## 3. Quick start · 빠른 시작
+
+### 3.0 Pre-built JAR (operators) · 빌드된 JAR로 실행
+
+**KO** · 소스를 빌드하지 않을 때. JRE 21, Postgres, Valkey/Redis, 환경변수 필요.  
+**EN** · No source build. Needs JRE 21, Postgres, Valkey/Redis, and env vars.
+
+```bash
+curl -fsSL -o livescreenlog.jar \
+  https://github.com/0xdc05f/livescreenlog/releases/latest/download/livescreenlog.jar
+# set SPRING_PROFILES_ACTIVE=prod and secrets — see §4 / docs/deploy/DEPLOY.md
+java -jar livescreenlog.jar
+```
+
+| Download · 다운로드 | URL |
+|---------------------|-----|
+| Latest JAR | https://github.com/0xdc05f/livescreenlog/releases/latest/download/livescreenlog.jar |
+| Latest JS | https://github.com/0xdc05f/livescreenlog/releases/latest/download/livescreenlog.js |
+| Releases | https://github.com/0xdc05f/livescreenlog/releases |
 
 ### 3.1 Local dev · 로컬 개발
 
@@ -233,8 +280,12 @@ Dashboard → Settings → Projects: create a project and copy the **API Key**.
 
 ### 7.2 Browser script tag · 스크립트 태그
 
+**Preferred · 권장:** serve from your LiveScreenLog server (same origin as API).  
+**대안:** [Release JS](https://github.com/0xdc05f/livescreenlog/releases/latest/download/livescreenlog.js) (pin a version in production).
+
 ```html
 <script src="https://YOUR-LSL-HOST/livescreenlog.js"></script>
+<!-- or: https://github.com/0xdc05f/livescreenlog/releases/download/v1.0.0/livescreenlog-1.0.0.js -->
 <script>
   LiveScreenLog.init({
     apiKey: 'YOUR_PROJECT_API_KEY',
@@ -250,6 +301,7 @@ Dashboard → Settings → Projects: create a project and copy the **API Key**.
 ```bash
 npm i @livescreenlog/browser
 # peer: rrweb
+# package: https://www.npmjs.com/package/@livescreenlog/browser (when published)
 ```
 
 ```js
@@ -410,6 +462,8 @@ Report vulnerabilities · 취약점 제보: [SECURITY.md](SECURITY.md)
 | Doc · 문서 | Content · 내용 |
 |------------|----------------|
 | [README.md](README.md) | Project overview · 프로젝트 개요 |
+| [GitHub Releases](https://github.com/0xdc05f/livescreenlog/releases) | JAR / JS downloads · 바이너리 다운로드 |
+| [docs/release/RELEASE.md](docs/release/RELEASE.md) | How maintainers cut a release · 릴리스 절차 |
 | [docs/deploy/DEPLOY.md](docs/deploy/DEPLOY.md) | Deploy reference · 배포 레퍼런스 |
 | [docs/api/API.md](docs/api/API.md) | HTTP API detail · API 상세 |
 | [docs/architecture/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md) | Architecture · 아키텍처 |

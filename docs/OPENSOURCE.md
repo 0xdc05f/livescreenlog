@@ -41,6 +41,10 @@ git add -n .
 | `LICENSE`, `README.md`, `SECURITY.md`, `CONTRIBUTING.md`, `Manual.md` | Community files |
 | `kilo.json` | Optional local MCP config; **no secrets** (keys via env only) |
 | `version.json`, `release.sh` | Versioning helpers |
+| `.github/workflows/release.yml` | Tag → GitHub Release (JAR/JS) |
+| `docs/release/RELEASE.md` | Maintainer release guide |
+
+Binary jars and `sdk/dist` are **not** committed; they ship via [GitHub Releases](https://github.com/0xdc05f/livescreenlog/releases).
 
 ## Secrets audit (run locally)
 
