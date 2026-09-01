@@ -23,6 +23,10 @@ public class ProductionSecurityValidator implements ApplicationRunner {
             "admin-password"
     );
 
+    private static final List<String> WEAK_PASSWORD_MARKERS = List.of(
+            "admin", "password", "123456", "admin123", "change-me", "changeme", "default", "secret"
+    );
+
     private final LiveScreenLogProperties properties;
 
     @Override
@@ -39,11 +43,24 @@ public class ProductionSecurityValidator implements ApplicationRunner {
                     "LIVESCREENLOG_ALLOWED_CAPTURE_ORIGINS must be an explicit allow-list in production (no *)");
         }
 
+        // Validate initial admin password for bootstrap in prod (if provided)
+        String dashPass = properties.getDashboardPassword();
+        if (dashPass != null && !dashPass.isBlank() && isWeakPassword(dashPass)) {
+            throw new IllegalStateException(
+                    "Initial admin password (livescreenlog.security.dashboard-password) is too weak for production. Use a strong password (>=12 chars, not common words).");
+        }
+
         log.info("Production security checks passed");
     }
 
     private boolean isWeak(String value) {
         String lower = value.toLowerCase();
         return WEAK_HMAC_MARKERS.stream().anyMatch(lower::contains);
+    }
+
+    private boolean isWeakPassword(String pwd) {
+        if (pwd == null || pwd.length() < 12) return true;
+        String lower = pwd.toLowerCase();
+        return WEAK_PASSWORD_MARKERS.stream().anyMatch(lower::contains);
     }
 }

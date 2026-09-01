@@ -20,6 +20,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.util.Map;
+
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
@@ -103,12 +105,25 @@ public class SessionIngestionService {
                 .sdkName(request.sdkName())
                 .sdkVersion(request.sdkVersion())
                 .sdkIntegration(request.sdkIntegration())
+                .hasError("ERROR".equals(request.trigger()))
                 .build();
 
         metadataRepository.save(metadata);
 
         long expirationMillis = System.currentTimeMillis() + (24 * 60 * 60 * 1000L);
         String token = generateToken(sessionId, expirationMillis);
+
+        // Broadcast a lightweight "session created" event so dashboards can react in real time (Redis pub/sub)
+        try {
+            String payload = objectMapper.writeValueAsString(Map.of(
+                    "type", "session_created",
+                    "sessionId", sessionId,
+                    "projectKey", effectiveKey,
+                    "userId", request.userId() != null ? request.userId() : "",
+                    "createdAt", metadata.getCreatedAt() != null ? metadata.getCreatedAt().toString() : ""
+            ));
+            redisTemplate.convertAndSend("session:created", payload);
+        } catch (Exception ignored) {}
 
         return new SessionCreateResponse(sessionId, token, true, mode);
     }
@@ -140,7 +155,11 @@ public class SessionIngestionService {
             }
 
             List<SessionEvent> events = new ArrayList<>(eventsArray.size());
+            boolean hasErrorEvent = false;
             for (JsonNode eventNode : eventsArray) {
+                if (isErrorEvent(eventNode)) {
+                    hasErrorEvent = true;
+                }
                 long timestamp = eventNode.has("timestamp") ? eventNode.get("timestamp").asLong() : System.currentTimeMillis();
                 try {
                     String eventData = objectMapper.writeValueAsString(eventNode);
@@ -153,6 +172,12 @@ public class SessionIngestionService {
             if (!events.isEmpty()) {
                 eventRepository.batchInsert(events);
                 touchHeartbeatThrottled(sessionId);
+                if (hasErrorEvent) {
+                    metadataRepository.findById(sessionId).ifPresent(metadata -> {
+                        metadata.markHasError();
+                        metadataRepository.save(metadata);
+                    });
+                }
 
                 String channel = "session:live:" + sessionId;
                 String payload = eventsJson;
@@ -183,9 +208,31 @@ public class SessionIngestionService {
         metadataRepository.findById(sessionId).ifPresent(metadata -> {
             metadata.stop();
             metadataRepository.save(metadata);
+            try {
+                String payload = objectMapper.writeValueAsString(Map.of(
+                        "type", "session_stopped",
+                        "sessionId", sessionId,
+                        "projectKey", metadata.getProjectKey(),
+                        "endedAt", metadata.getEndAt() != null ? metadata.getEndAt().toString() : ""
+                ));
+                redisTemplate.convertAndSend("session:created", payload);
+            } catch (Exception ignored) {}
         });
     }
 
+    @Transactional
+    public void deleteSession(String sessionId) {
+        metadataRepository.deleteById(sessionId);
+        try {
+            String payload = objectMapper.writeValueAsString(Map.of(
+                    "type", "session_deleted",
+                    "sessionId", sessionId
+            ));
+            redisTemplate.convertAndSend("session:created", payload);
+        } catch (Exception ignored) {}
+    }
+
+    @Transactional
     private void touchHeartbeatThrottled(String sessionId) {
         int throttleSeconds = properties.getHeartbeatThrottleSeconds();
         metadataRepository.findById(sessionId).ifPresent(metadata -> {
@@ -195,8 +242,7 @@ public class SessionIngestionService {
                     return;
                 }
             }
-            metadata.heartbeat();
-            metadataRepository.save(metadata);
+            metadataRepository.touchUpdatedAt(sessionId, ZonedDateTime.now());
         });
     }
 
@@ -219,5 +265,13 @@ public class SessionIngestionService {
         } catch (NoSuchAlgorithmException | InvalidKeyException e) {
             throw new RuntimeException("Failed to generate token", e);
         }
+    }
+
+    private boolean isErrorEvent(JsonNode node) {
+        if (node == null || !node.has("type")) return false;
+        if (node.get("type").asInt() != 5) return false;
+        if (!node.has("data") || !node.get("data").isObject() || !node.get("data").has("tag")) return false;
+        String tag = node.get("data").get("tag").asText();
+        return "ERROR".equals(tag) || "CONSOLE_ERROR".equals(tag) || "UNHANDLED_REJECTION".equals(tag) || "FETCH_ERROR".equals(tag);
     }
 }

@@ -1,9 +1,20 @@
 import { LiveScreenLogOptions, SessionInitResponse, LiveScreenLogUser } from './types';
+import * as rrweb from 'rrweb';
 
 // Injected at build time; fallback for source
 declare const __SDK_VERSION__: string | undefined;
 const SDK_VERSION = typeof __SDK_VERSION__ !== 'undefined' ? __SDK_VERSION__ : '1.1.0';
 const SDK_NAME = 'livescreenlog-browser';
+
+// Offline buffering constants (reuse no new deps)
+const MAX_PENDING = 2000;
+const PENDING_STORAGE_KEY = 'livescreenlog-pending';
+
+// Bundle rrweb inside so users only need `npm install livescreenlog`.
+// We expose it on window so all existing `window.rrweb.record(...)` calls continue to work.
+if (typeof window !== 'undefined') {
+  (window as any).rrweb = rrweb;
+}
 
 class LiveScreenLogSDK {
   private projectKey!: string;
@@ -11,6 +22,8 @@ class LiveScreenLogSDK {
   private endpoint!: string;
   private mode!: 'REPLAY' | 'LOGS' | 'BOTH';
   private onSessionReady?: (sessionId: string) => void;
+  private onInitError?: (error: Error) => void;
+  private onStandby?: (mode: string) => void;
   private tags: Record<string, string> = {};
   private sdkIntegration: string = 'browser';
 
@@ -23,6 +36,12 @@ class LiveScreenLogSDK {
   private flushTimer: any = null;
   private sseConn: EventSource | null = null;
   private isRecordingStarted = false;
+
+  // Offline buffering + retry (pending for failed/offline, retry with backoff)
+  private pendingQueue: any[] = [];
+  private retryTimer: any = null;
+  private retryDelay = 1000;
+  private onlineListenerAdded = false;
 
   public init(options: LiveScreenLogOptions) {
     const key = options.apiKey || options.projectKey;
@@ -40,10 +59,15 @@ class LiveScreenLogSDK {
     this.endpoint = options.dsn || options.endpoint || window.location.origin;
     this.mode = options.mode || 'BOTH';
     this.onSessionReady = options.onSessionReady;
+    this.onInitError = options.onInitError;
+    this.onStandby = options.onStandby;
     this.sdkIntegration = options.integration || 'browser';
     if (options.tags && typeof options.tags === 'object') {
       this.tags = { ...this.tags, ...this.normalizeTags(options.tags) };
     }
+
+    // Offline: restore pending at init start (before handshake)
+    this.restorePending();
 
     this.logInfo('Initializing LiveScreenLog SDK', SDK_NAME + '@' + SDK_VERSION, 'Mode:', this.mode);
 
@@ -59,6 +83,16 @@ class LiveScreenLogSDK {
       queueMicrotask(begin);
     } else {
       setTimeout(begin, 0);
+    }
+
+    // Offline: add 'online' listener once (clear retry, reset delay, flush)
+    if (!this.onlineListenerAdded && typeof window !== 'undefined') {
+      this.onlineListenerAdded = true;
+      window.addEventListener('online', () => {
+        this.clearRetryTimer();
+        this.retryDelay = 1000;
+        this.flush();
+      });
     }
   }
 
@@ -122,15 +156,20 @@ class LiveScreenLogSDK {
         } else if (data.recordingMode === 'B') {
           // B Mode: remote standby (SSE)
           this.setupModeB();
+          if (this.onStandby) this.onStandby('B');
         } else if (data.recordingMode === 'C') {
           // C Mode: auto trigger on error
           this.setupModeC();
+          if (this.onStandby) this.onStandby('C');
         } else {
           this.logInfo('Recording disabled for this session. Policy mode:', data.recordingMode);
         }
       })
       .catch((err) => {
         this.logError('Failed to initialize session from server:', err);
+        if (this.onInitError) {
+          this.onInitError(err instanceof Error ? err : new Error(String(err)));
+        }
       });
   }
 
@@ -151,6 +190,7 @@ class LiveScreenLogSDK {
     return fetch(`${this.endpoint}/api/sessions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'omit',
       body: JSON.stringify(body)
     }).then((r) => {
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -174,11 +214,9 @@ class LiveScreenLogSDK {
       }
     }
 
-    // Flush any buffered startup logs or pre-trigger events
-    const initialBatch = this.events.splice(0);
-    if (initialBatch.length > 0) {
-      this.sendEvents(initialBatch);
-    }
+    // Offline: trim + flush() (replaces splice send) so covers pending + pre + events
+    this.trimQueue();
+    this.flush();
 
     // Start rrweb recorder if replay mode is active
     if ((this.mode === 'REPLAY' || this.mode === 'BOTH') && window.rrweb) {
@@ -189,7 +227,8 @@ class LiveScreenLogSDK {
       this.stopRecord = window.rrweb.record({
         emit: (event: any) => {
           this.events.push(event);
-          if (this.events.length >= 10) this.flush();
+          this.trimQueue(); // Offline trim on active rrweb emit
+          if (this.events.length >= 8) this.flush();
         },
         maskAllInputs: true,
         blockClass: 'livescreenlog-block',
@@ -200,27 +239,44 @@ class LiveScreenLogSDK {
           tel: true,
         },
       });
+
+      // Force the very first full snapshot to be emitted and sent immediately
+      try {
+        // rrweb exposes it on the record function in many builds
+        (window.rrweb as any)?.record?.takeFullSnapshot?.();
+      } catch {}
+      // Send whatever is there (the snapshot) right away
+      setTimeout(() => this.flush(), 30);
     }
 
-    // Start timers
-    this.flushTimer = setInterval(() => this.flush(), 3000);
+    // Start timers - frequent enough for responsive live tail
+    this.flushTimer = setInterval(() => this.flush(), 1200);
     
     this.heartbeatTimer = setInterval(() => {
       if (this.token) {
         fetch(`${this.endpoint}/api/heartbeat`, {
           method: 'POST',
-          headers: { 'x-livescreenlog-session-token': this.token }
+          headers: { 'x-livescreenlog-session-token': this.token },
+          credentials: 'omit'
         }).catch(() => {});
       }
     }, 15000);
 
     // Unload listeners
     window.addEventListener('beforeunload', () => {
+      // Offline: move current events to pending, persist, then flush (best effort)
+      if (this.events.length > 0) {
+        this.pendingQueue.push(...this.events);
+        this.events = [];
+        this.trimQueue();
+        this.persistPending();
+      }
       this.flush();
       if (this.token) {
         fetch(`${this.endpoint}/api/stop`, {
           method: 'POST',
           headers: { 'x-livescreenlog-session-token': this.token },
+          credentials: 'omit',
           keepalive: true
         }).catch(() => {});
       }
@@ -296,23 +352,105 @@ class LiveScreenLogSDK {
           if (this.events.length > 300) {
             this.events.shift();
           }
+          this.trimQueue(); // Offline trim on pre-trigger rrweb emit
         }
       });
     }
   }
 
   private flush() {
-    if (this.events.length === 0 || !this.token) return;
-    const batch = this.events.splice(0);
-    void this.sendEvents(batch);
+    if (!this.token || (this.events.length === 0 && this.pendingQueue.length === 0)) return;
+    const batch: any[] = [];
+    // Offline: splice batch from pending (older first) + events
+    if (this.pendingQueue.length > 0) {
+      batch.push(...this.pendingQueue.splice(0));
+    }
+    if (this.events.length > 0) {
+      batch.push(...this.events.splice(0));
+    }
+    if (batch.length === 0) return;
+    this.sendEvents(batch).then((success) => {
+      if (!success) {
+        // re-enqueue to pending (front), schedule retry, persist
+        this.pendingQueue.unshift(...batch);
+        if (this.pendingQueue.length > MAX_PENDING) {
+          this.pendingQueue = this.pendingQueue.slice(-MAX_PENDING);
+        }
+        this.scheduleRetry();
+      } else {
+        // success: reset backoff
+        this.retryDelay = 1000;
+        this.clearRetryTimer();
+      }
+      this.persistPending();
+    });
+  }
+
+  // Public helper so demos can force an immediate full snapshot + flush
+  public forceSnapshot() {
+    try { window.rrweb?.record?.takeFullSnapshot?.(); } catch {}
+    setTimeout(() => this.flush(), 0);
+  }
+
+  // --- Offline buffering + retry helpers (minimal, reuse flush/send/rrweb/pre) ---
+  private restorePending() {
+    if (typeof localStorage === 'undefined') return;
+    try {
+      const stored = localStorage.getItem(PENDING_STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          this.pendingQueue.push(...parsed);
+          this.trimQueue();
+        }
+      }
+    } catch {}
+  }
+
+  private persistPending() {
+    if (typeof localStorage === 'undefined') return;
+    try {
+      if (this.pendingQueue.length === 0) {
+        localStorage.removeItem(PENDING_STORAGE_KEY);
+      } else {
+        const limited = this.pendingQueue.slice(-MAX_PENDING);
+        localStorage.setItem(PENDING_STORAGE_KEY, JSON.stringify(limited));
+      }
+    } catch {}
+  }
+
+  private trimQueue() {
+    // trim pending + hot events (to 2000) on begin, emits, custom logs
+    if (this.pendingQueue.length > MAX_PENDING) {
+      this.pendingQueue = this.pendingQueue.slice(-MAX_PENDING);
+    }
+    if (this.events.length > 2000) {
+      this.events = this.events.slice(-2000);
+    }
+  }
+
+  private scheduleRetry() {
+    this.clearRetryTimer();
+    const delay = this.retryDelay;
+    this.retryTimer = setTimeout(() => {
+      this.flush();
+    }, delay);
+    this.retryDelay = Math.min(this.retryDelay * 2, 30000);
+  }
+
+  private clearRetryTimer() {
+    if (this.retryTimer != null) {
+      clearTimeout(this.retryTimer);
+      this.retryTimer = null;
+    }
   }
 
   /**
    * Upload event batch. Gzip when batch is large enough and CompressionStream is available
    * (reduces uplink; client CPU cost only on larger flushes). Falls back to plain JSON.
    */
-  private async sendEvents(batch: any[]) {
-    if (!this.token || !batch || batch.length === 0) return;
+  private async sendEvents(batch: any[]): Promise<boolean> {
+    if (!this.token || !batch || batch.length === 0) return false;
 
     const json = JSON.stringify(batch);
     const headers: Record<string, string> = {
@@ -338,11 +476,17 @@ class LiveScreenLogSDK {
       }
     }
 
-    fetch(`${this.endpoint}/api/events`, {
-      method: 'POST',
-      headers,
-      body,
-    }).catch(() => {});
+    try {
+      const res = await fetch(`${this.endpoint}/api/events`, {
+        method: 'POST',
+        headers,
+        body,
+        credentials: 'omit',
+      });
+      return !!res.ok;
+    } catch {
+      return false;
+    }
   }
 
   // --- Dynamic Script Loader ---
@@ -353,7 +497,7 @@ class LiveScreenLogSDK {
     }
     this.logInfo('rrweb not found on page. Dynamically injecting script...');
     const script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/rrweb@1.1.3/dist/rrweb.min.js';
+    script.src = 'https://cdn.jsdelivr.net/npm/rrweb@2.1.1/dist/rrweb.min.js';
     script.async = true;
     script.onload = () => {
       this.logInfo('rrweb script injected and loaded successfully.');
@@ -859,6 +1003,7 @@ class LiveScreenLogSDK {
     };
 
     this.events.push(customEvent);
+    this.trimQueue(); // Offline trim on every custom log emit
 
     if (this.token && this.events.length >= 10) {
       this.flush();

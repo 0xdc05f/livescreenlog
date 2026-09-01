@@ -5,7 +5,7 @@ Base URL: server origin (e.g. `http://localhost:8080`)
 ## Ingest
 
 ### `POST /api/sessions`
-Create a session (or return policy-disabled response).
+Create a session (or return policy-disabled response). **permitAll** (no auth); `projectKey` is validated in `SessionIngestionService`.
 
 **Body**
 ```json
@@ -40,10 +40,10 @@ Session keep-alive / stop. Same HMAC header.
 
 ## Read (dashboard)
 
-No app-level login. Open at the HTTP layer — protect with network isolation. HMAC still protects ingest only.
+Requires admin login (form / session). API paths use hasAnyRole("SUPER_ADMIN", "ADMIN"). Network isolation still recommended in prod. HMAC for ingest only.
 
 ### `GET /api/sessions`
-Query params: `startDate`, `endDate`, `userId`, `source`, `status`, `projectKey`, `query`, `page`, `size`, `sort`.
+Query params: `startDate`, `endDate`, `userId`, `source`, `status`, `projectKey`, `query`, `page`, `size`, `sort`, `updatedAfter`.
 
 ### `GET /api/sessions/{id}`
 Session metadata.
@@ -61,8 +61,23 @@ Session metadata.
 }
 ```
 
+### `GET /api/sessions/live`
+List SSE for active sessions (event name `session_created`).
+
+### `GET /api/sessions/recommended?limit=`
+Error-triggered recommendations (dashboard).
+
 ### `GET /api/sessions/{id}/live`
-SSE live tail (`text/event-stream`). Events named `message` (JSON array payload). Comment pings every 15s.
+Per-session SSE live tail (`text/event-stream`). Events named `message` (JSON array payload). Comment pings every 15s. Dashboard fetches events with `paged=true` by default.
+
+### `GET /api/stats/overview?projectKey=`
+Usage stats (hours/days/months + live counts). Requires ADMIN.
+
+### `GET /api/me`
+Current authenticated user.
+
+### `POST /api/me/password`
+Change password (body: currentPassword, newPassword).
 
 ## Push signaling (Mode B)
 
@@ -77,7 +92,7 @@ Open (no login). Mode B works without dashboard credentials.
 
 ## Projects
 
-All under `/api/projects/**` — open (no login); network-isolate in production.
+All under `/api/projects/**` — protected by hasAnyRole("SUPER_ADMIN", "ADMIN") (requires dashboard login).
 
 ## Ops
 

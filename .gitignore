@@ -162,3 +162,6 @@ deploy/docker-compose.override.yml
 deploy/.env
 **/application-local.yml
 **/application-local.yaml
+
+# Local reference materials (screenshots, mockups)
+참고자료/

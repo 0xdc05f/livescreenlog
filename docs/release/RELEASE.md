@@ -9,7 +9,7 @@ JAR / 브라우저 JS 버전 관리와 배포 방법.
 |-------------------|----------------|-------------------|
 | Operator · 운영자 | [GitHub Releases](https://github.com/0xdc05f/livescreenlog/releases) | `livescreenlog.jar` |
 | Web integrator · 웹 연동 | Same release **or** self-hosted `/livescreenlog.js` | `livescreenlog.js` |
-| Bundler / npm | npm (optional) `@livescreenlog/browser` | package from `sdk/` |
+| Bundler / npm | npm (optional) `livescreenlog` | package from `sdk/` (rrweb bundled) |
 | Contributor · 기여자 | This git repo | source |
 
 Sources stay in git. **Do not commit** `build/`, `sdk/dist/`, or jars (see `.gitignore`).
@@ -85,12 +85,12 @@ Prefer publishing the same version as the git tag. Not required for self-host: o
 
 ## Docker image (optional) · Docker (선택)
 
+Tag `v0.2.0` triggers GHCR push (`ghcr.io/0xdc05f/livescreenlog:0.2.0`, `:latest`, `:server-0.2.0`). npm publish needs repo secret `NPM_TOKEN`.
+
 ```bash
 ./gradlew bootJar
-docker build -f deploy/Dockerfile -t ghcr.io/0xdc05f/livescreenlog:0.1.0 .
+docker build -f deploy/Dockerfile -t ghcr.io/0xdc05f/livescreenlog:0.2.0 .
 ```
-
-Automating GHCR push can be added to the release workflow later.
 
 ## Layout reminder · 구조
 

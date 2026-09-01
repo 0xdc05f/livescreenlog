@@ -69,10 +69,10 @@
   LiveScreenLog.setTags({ dept: '영업팀' });
 <\/script>`);
 
-  let npmSnippet = $derived(`// npm i @livescreenlog/browser
+  let npmSnippet = $derived(`// npm i livescreenlog
 // or: import from '${host}/livescreenlog.js'
 
-import { LiveScreenLog } from '@livescreenlog/browser';
+import { LiveScreenLog } from 'livescreenlog';
 
 LiveScreenLog.init({
   endpoint: '${host}',
@@ -81,23 +81,14 @@ LiveScreenLog.init({
 });
 LiveScreenLog.setTags({ role: 'admin', app: 'web' });`);
 
-  let vueSnippet = $derived(`import { LiveScreenLog } from '@livescreenlog/browser';
-// or window.LiveScreenLog after <script src="${host}/livescreenlog.js">
+  let vueSnippet = $derived(`import { LiveScreenLog } from 'livescreenlog';
+// or window.LiveScreenLog after <script src="${host}/livescreenlog.js">`);
 
-// e.g. after login
-LiveScreenLog.init({
-  endpoint: '${host}',
-  apiKey: '${apiKey}',
-  id: user.empNo,
-  integration: 'vue',
-});
-LiveScreenLog.setTags({ dept: user.dept, app: 'vue-admin' });`);
-
-  let apiSessionInit = $derived(`POST /api/sessions
+  let apiSessionInit = `POST /api/sessions
 Content-Type: application/json
 
 {
-  "apiKey": "${apiKey}",
+  "apiKey": "YOUR_API_KEY",
   "userId": "user001",
   "tags": { "dept": "영업팀" },
   "sdkName": "livescreenlog-browser",
@@ -105,7 +96,7 @@ Content-Type: application/json
   "sdkIntegration": "browser"
 }
 
-// → { sessionId, token, enabled, recordingMode }`);
+// → { sessionId, token, enabled, recordingMode }`;
 
   let apiEvents = `POST /api/events
 Content-Type: application/json

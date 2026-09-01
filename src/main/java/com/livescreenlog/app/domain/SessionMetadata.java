@@ -41,6 +41,9 @@ public class SessionMetadata {
     @Column(name = "status", nullable = false)
     private String status;
 
+    @Column(name = "has_error")
+    private Boolean hasError = false;
+
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "tags", columnDefinition = "jsonb")
     private Map<String, String> tags;
@@ -77,6 +80,7 @@ public class SessionMetadata {
             String sdkName,
             String sdkVersion,
             String sdkIntegration,
+            Boolean hasError,
             ZonedDateTime endAt
     ) {
         this.sessionId = sessionId;
@@ -89,6 +93,7 @@ public class SessionMetadata {
         this.sdkName = sdkName;
         this.sdkVersion = sdkVersion;
         this.sdkIntegration = sdkIntegration;
+        this.hasError = hasError != null ? hasError : false;
         this.endAt = endAt;
     }
 
@@ -99,5 +104,9 @@ public class SessionMetadata {
 
     public void heartbeat() {
         this.updatedAt = ZonedDateTime.now();
+    }
+
+    public void markHasError() {
+        this.hasError = true;
     }
 }

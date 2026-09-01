@@ -4,7 +4,7 @@
   import { formatDateTime, formatRange, formatDurationMs } from '../lib/dateFormat';
   import DeviceIcons from './DeviceIcons.svelte';
 
-  let { session, events, onSeekTo, loading = false } = $props();
+  let { session, events, onSeekTo, onForceStop, onDeleteSession, loading = false } = $props();
 
   let activeTab = $state('activity');
   let activityFilter = $state('clicks');
@@ -400,6 +400,10 @@
           </button>
         </div>
       </div>
+      {#if session?.status !== 'STOPPED'}
+        <button class="btn btn-secondary" onclick={onForceStop}>{$t.forceStop}</button>
+      {/if}
+      <button class="btn btn-ghost" onclick={() => { if (confirm($t.confirmDeleteSession)) onDeleteSession?.(); }}>{$t.deleteSession}</button>
     {:else}
       <div class="empty-state-clean empty-state-spaced">
         <p>{$t.noSessionMeta}</p>

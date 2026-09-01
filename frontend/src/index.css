@@ -142,6 +142,19 @@ body {
   gap: var(--space-3);
 }
 
+button.topbar-left {
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+}
+button.topbar-left:hover .app-title {
+  color: #f2ebe1;
+}
+
 .logo-mark {
   width: 32px;
   height: 32px;
@@ -193,6 +206,34 @@ body {
   display: flex;
   align-items: center;
   gap: var(--space-3);
+}
+
+.topbar-account {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+  color: #a89a88;
+}
+.topbar-account a {
+  color: #a89a88;
+  text-decoration: none;
+}
+.topbar-account a:hover {
+  color: #f2ebe1;
+}
+
+.topbar-account button.linkish {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  color: #a89a88;
+  text-decoration: none;
+}
+.topbar-account button.linkish:hover {
+  color: #f2ebe1;
 }
 
 /* ── Language Select ── */
@@ -911,6 +952,67 @@ select.filter-input {
   color: var(--muted);
 }
 
+.rec-rail {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.4rem 1rem;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--panel);
+  min-height: 0;
+  max-height: 52px;
+}
+.rec-head {
+  flex-shrink: 0;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted-2);
+  font-family: var(--font-mono);
+}
+.rec-list {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  min-width: 0;
+  flex: 1;
+}
+.rec-card {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  max-width: 220px;
+  height: 28px;
+  padding: 0 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+}
+.rec-card:hover, .rec-card.active {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+}
+.rec-card-title, .rec-card-user {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.7rem;
+}
+.rec-card-user { color: var(--muted); max-width: 72px; }
+.rec-loading, .rec-empty {
+  font-size: 0.7rem;
+  color: var(--muted-2);
+  white-space: nowrap;
+}
+
 .live-meta-badge {
   display: inline-flex;
   align-items: center;
@@ -998,6 +1100,14 @@ select.filter-input {
 .copy-icon {
   width: 12px;
   height: 12px;
+}
+
+.player-stack {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 /* ── Player Rendering ── */

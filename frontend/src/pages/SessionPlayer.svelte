@@ -36,12 +36,27 @@
   let isDragging = $state(false);
   let didDragSeek = false;
 
+  let recordingStartTs = $state(0);
+
   // ── Formatting ────────────────────────────────────────────────
   function fmt(ms: number): string {
     if (!isFinite(ms) || ms < 0) ms = 0;
     const s = Math.floor(ms / 1000);
     const m = Math.floor(s / 60);
     return `${String(m).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+  }
+
+  function firstEventTs(events: any[]): number {
+    for (const e of events) {
+      const ts = e?.timestamp;
+      if (typeof ts === 'number' && isFinite(ts) && ts > 0) return ts;
+    }
+    return 0;
+  }
+
+  function wallElapsed(): number {
+    if (!recordingStartTs) return 0;
+    return Math.max(0, Date.now() - recordingStartTs);
   }
 
   function refreshMetaDuration() {
@@ -52,6 +67,9 @@
         totalTime = Math.max(totalTime, meta.totalTime);
       }
     } catch {}
+    if (isLive) {
+      totalTime = Math.max(totalTime, wallElapsed());
+    }
   }
 
   function readReplayerTime(): number {
@@ -65,22 +83,16 @@
     return currentTime;
   }
 
-  // ── RAF tick: sync progress from rrweb clock only ───────────────
   function tick() {
     if (replayer && !isSeeking && !isDragging) {
       try {
         refreshMetaDuration();
-        if (isPlaying || isLive) {
+        if (isLive && followLiveEdge) {
+          currentTime = totalTime;
+        } else if (isPlaying) {
           const tVal = readReplayerTime();
           const cap = totalTime > 0 ? totalTime : tVal;
           currentTime = Math.max(0, Math.min(tVal, cap || tVal));
-
-          // Live edge-follow: if user is near the end, stick to newest duration
-          if (isLive && followLiveEdge && isPlaying && totalTime > 0) {
-            if (currentTime >= totalTime - LIVE_EDGE_MS) {
-              currentTime = totalTime;
-            }
-          }
         }
       } catch {}
     }
@@ -399,6 +411,10 @@
       await new Promise<void>(r => setTimeout(r, 60));
       if (!playerContainer) return;
 
+      if (!recordingStartTs) {
+        recordingStartTs = firstEventTs(rawEvents);
+      }
+
       isLive = session.status === 'ACTIVE';
 
       replayer = new Replayer(rawEvents, {
@@ -418,7 +434,11 @@
       });
 
       replayer.on('pause', () => {
-        isPlaying = false;
+        if (isLive && followLiveEdge) {
+          isPlaying = true;
+        } else {
+          isPlaying = false;
+        }
       });
 
       replayer.on('finish', () => {
@@ -467,10 +487,16 @@
             for (const evt of batch) {
               replayer.addEvent(evt);
               handleCustomEvent(evt);
+              if (!recordingStartTs && typeof evt?.timestamp === 'number' && evt.timestamp > 0) {
+                recordingStartTs = evt.timestamp;
+              }
             }
             const prevTotal = totalTime;
             refreshMetaDuration();
             liveDisconnected = false;
+            if (followLiveEdge) {
+              currentTime = totalTime;
+            }
 
             // Keep playback attached to the growing timeline
             if (followLiveEdge && isPlaying && totalTime > prevTotal) {
@@ -511,11 +537,13 @@
   });
 
   let progressPct = $derived(
-    totalTime > 0
-      ? Math.min(100, Math.max(0, (currentTime / totalTime) * 100))
-      : isLive
-        ? 100
-        : 0
+    isLive && followLiveEdge
+      ? 100
+      : totalTime > 0
+        ? Math.min(100, Math.max(0, (currentTime / totalTime) * 100))
+        : isLive
+          ? 100
+          : 0
   );
 </script>
 

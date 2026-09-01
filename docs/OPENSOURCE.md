@@ -82,7 +82,7 @@ Production (`prod` profile) should fail fast on weak HMAC and wildcard capture o
 | Doc | Audience |
 |-----|----------|
 | `README.md` | Install, run, overview |
-| `Manual.md` | Bilingual operator/integration manual (KO + EN) |
+| `Manual.md` | Operator/integration manual (한국어 + English) — see Manual.ko.md / Manual.en.md |
 | `docs/deploy/DEPLOY.md` | Beta / self-host reference (compose + bare metal) |
 | `docs/api/API.md` | HTTP API |
 | `docs/architecture/ARCHITECTURE.md` | System design |
@@ -125,7 +125,7 @@ git commit -m "Initial public release"
 | Env prefix | `LIVESCREENLOG_*` |
 | YAML prefix | `livescreenlog.*` |
 | Java package | `com.livescreenlog.app` |
-| npm SDK | `@livescreenlog/browser` |
+| npm SDK | `livescreenlog` (rrweb bundled inside) |
 | Bundle | `/livescreenlog.js` · `window.LiveScreenLog` |
 | Auth header | `x-livescreenlog-session-token` |
 | Privacy classes | `livescreenlog-block`, `livescreenlog-ignore` |

@@ -9,6 +9,9 @@
   let copiedKey = $state<string | null>(null);
   let searchQuery = $state('');
 
+  let toastMsg = $state('');
+  let toastTimer: ReturnType<typeof setTimeout> | null = null;
+
   // --- Unified Create/Edit Modal ---
   let showModal = $state(false);
   let modalTitle = $state('');
@@ -154,12 +157,56 @@
     } catch {}
   }
 
+  async function rotateProject(id: number) {
+    if (!confirm($t.projectRotateConfirm)) return;
+    try {
+      const res = await fetch(`/api/projects/${id}/rotate-key`, { method: 'POST' });
+      if (res.ok) {
+        const updated = await res.json();
+        projects = projects.map((p: any) => p.id === updated.id ? updated : p);
+        copyKey(updated.apiKey);
+        showToast($t.projectKeyRotated);
+        if (isEditing && projectId === id) {
+          projectApiKey = updated.apiKey;
+        }
+      }
+    } catch {}
+  }
+
   async function copyKey(key: string) {
     try {
       await navigator.clipboard.writeText(key);
       copiedKey = key;
       setTimeout(() => copiedKey = null, 2000);
     } catch {}
+  }
+
+  async function rotateKey() {
+    if (!projectId) return;
+    if (!confirm($t.projectRotateConfirm)) return;
+    try {
+      const res = await fetch(`/api/projects/${projectId}/rotate-key`, { method: 'POST' });
+      if (res.ok) {
+        const updated = await res.json();
+        projects = projects.map((p: any) => p.id === updated.id ? updated : p);
+        projectApiKey = updated.apiKey;
+        try {
+          await navigator.clipboard.writeText(updated.apiKey);
+          copiedKey = updated.apiKey;
+          setTimeout(() => { if (copiedKey === updated.apiKey) copiedKey = null; }, 2000);
+        } catch {}
+      } else {
+        formError = $t.projectSettingsError;
+      }
+    } catch {
+      formError = $t.projectSettingsError;
+    }
+  }
+
+  function showToast(msg: string) {
+    toastMsg = msg;
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { toastMsg = ''; }, 1800);
   }
 
   async function fetchActiveTerminals(projectKey: string) {
@@ -333,7 +380,13 @@
                       <button class="btn-table-settings" onclick={() => openEditModal(project)} title={$t.projectSettings}>
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-settings">
                           <circle cx="12" cy="12" r="3"></circle>
-                          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06-.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                        </svg>
+                      </button>
+                      <button class="btn-table-rotate" onclick={() => rotateProject(project.id)} title={$t.projectRotateKey}>
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-refresh">
+                          <polyline points="23 4 23 10 17 10"></polyline>
+                          <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
                         </svg>
                       </button>
                       <button class="btn-table-delete" onclick={() => deleteProject(project.id)} title={$t.projectDelete}>
@@ -352,6 +405,9 @@
       {/if}
     </div>
   </div>
+  {#if toastMsg}
+    <div class="toast" role="status">{toastMsg}</div>
+  {/if}
 </div>
 
 <!-- Unified Create/Edit Modal -->
@@ -364,7 +420,10 @@
         <div>
           <h3>{modalTitle}</h3>
           {#if isEditing}
-            <p class="modal-sub">API Key: <code style="font-family:monospace;font-size:0.7rem">{projectApiKey}</code></p>
+            <p class="modal-sub">
+              API Key: <code style="font-family:monospace;font-size:0.7rem">{projectApiKey}</code>
+              <button type="button" class="btn-rotate-key" onclick={rotateKey}>{$t.projectRotateKey}</button>
+            </p>
           {/if}
         </div>
         <button class="btn-modal-close" onclick={() => showModal = false}>
@@ -741,6 +800,29 @@
     height: 13px;
   }
 
+  .btn-table-rotate {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    padding: 0.4rem;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.12s;
+  }
+
+  .btn-table-rotate:hover {
+    color: var(--accent);
+    background: rgba(99, 102, 241, 0.08);
+  }
+
+  .icon-refresh {
+    width: 13px;
+    height: 13px;
+  }
+
   .btn-table-delete {
     background: none;
     border: none;
@@ -821,6 +903,19 @@
     font-size: 0.72rem;
     color: var(--muted);
   }
+
+  .btn-rotate-key {
+    margin-left: 0.5rem;
+    font-size: 0.65rem;
+    padding: 0.1rem 0.35rem;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--muted);
+    border-radius: 4px;
+    cursor: pointer;
+    vertical-align: middle;
+  }
+  .btn-rotate-key:hover { color: var(--accent); border-color: var(--accent); }
 
   .btn-modal-close {
     background: var(--surface);

@@ -19,6 +19,8 @@ export interface LiveScreenLogOptions {
   integration?: string;
   mode?: 'REPLAY' | 'LOGS' | 'BOTH';
   onSessionReady?: (sessionId: string) => void;
+  onInitError?: (error: Error) => void;
+  onStandby?: (mode: string) => void;
 }
 
 export type LiveScreenLogUser =

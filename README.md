@@ -41,7 +41,7 @@ Java 21 · Spring Boot 4.x · PostgreSQL 16+ · Valkey/Redis · Svelte dashboard
      -e REDIS_PORT=6379 \
      -e LIVESCREENLOG_HMAC_SECRET='a-very-strong-random-string-at-least-32-chars' \
      -e LIVESCREENLOG_ALLOWED_CAPTURE_ORIGINS='https://your-site.com,https://admin.your-site.com' \
-     ghcr.io/livescreenlog/server:0.1.0
+      ghcr.io/0xdc05f/livescreenlog:0.2.0
    ```
 
    Or use Docker Compose (recommended for local/production testing):
@@ -73,7 +73,7 @@ Java 21 · Spring Boot 4.x · PostgreSQL 16+ · Valkey/Redis · Svelte dashboard
          retries: 5
 
      app:
-       image: ghcr.io/livescreenlog/server:0.1.0
+        image: ghcr.io/0xdc05f/livescreenlog:0.2.0
        depends_on:
          postgres:
            condition: service_healthy
@@ -199,7 +199,7 @@ Copy `.env.example` → `.env`. **Never commit real secrets.**
 
 HMAC secret and database credentials must always come from environment / secret manager.
 
-Full bilingual guide (한국어 + English): [Manual.md](Manual.md)
+Manual: [Manual.md](Manual.md) (한국어 / English)
 
 Details: `docs/security/SECURITY.md`, `docs/deploy/DEPLOY.md`.
 
@@ -213,18 +213,18 @@ Details: `docs/security/SECURITY.md`, `docs/deploy/DEPLOY.md`.
 ├── deploy/                Reference Dockerfile + compose (not the only way)
 ├── docs/                  Architecture, API, security, deploy, release
 ├── .github/workflows/     CI — tag v* → GitHub Release (JAR + JS)
-├── version.json           Release version pin
+├── version.json           Release version pin (docker tags and artifacts follow this)
 ├── release.sh             Sync versions + local artifact build
 └── .env.example           Env template (no real secrets)
 ```
 
 ## Documentation
 
-**한국어 + English 풀 매뉴얼**: [Manual.md](Manual.md) — 운영자 가이드, 연동, 보안, 배포를 모두 담고 있습니다.
+**매뉴얼**: [Manual.md](Manual.md) — 한국어 / English (별도 파일: Manual.ko.md, Manual.en.md)
 
 | Doc | Description |
 |-----|-------------|
-| [Manual.md](Manual.md) | **Full bilingual manual (한국어 + English)** — 운영, 설정, 연동, 보안, 배포 |
+| [Manual.md](Manual.md) | Full manual — 한국어 / English — 운영, 설정, 연동, 보안, 배포 |
 | [docs/release/RELEASE.md](docs/release/RELEASE.md) | Versioning, tags, GitHub Release artifacts |
 | [docs/deploy/DEPLOY.md](docs/deploy/DEPLOY.md) | Self-host deploy reference |
 | [docs/api/API.md](docs/api/API.md) | HTTP API |

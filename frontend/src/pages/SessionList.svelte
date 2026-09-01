@@ -1,9 +1,10 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { t } from '../i18n';
   import { buildSessionTags, formatSdkBadge, parseUserAgent } from '../lib/uaParse';
   import { formatCompact, formatRange } from '../lib/dateFormat';
   import DeviceIcons from '../components/DeviceIcons.svelte';
+  import { isSessionLive, LIVE_WINDOW_MS } from '../lib/sessionLive';
 
   let { onSelect, selectedSessionId, projects = [] } = $props();
 
@@ -17,6 +18,10 @@
   let page = $state(0);
   let totalPages = $state(0);
   let totalElements = $state(0);
+
+  let listEventSource: EventSource | null = null;
+  let sseRetryTimer: any = null;
+  let sseRetryCount = 0;
 
   let startDate = $state('');
   let endDate = $state('');
@@ -73,9 +78,11 @@
   function toIsoStart(s: string) { return s ? new Date(s + 'T00:00:00').toISOString() : ''; }
   function toIsoEnd(s: string)   { return s ? new Date(s + 'T23:59:59').toISOString() : ''; }
 
-  async function fetchSessions(pageToFetch = 0) {
-    loading = true;
-    listError = '';
+  async function fetchSessions(pageToFetch = 0, silent = false) {
+    if (!silent) {
+      loading = true;
+      listError = '';
+    }
     try {
       const q = new URLSearchParams();
       if (queryStr) q.append('query', queryStr);
@@ -86,7 +93,12 @@
       if (selectedStatus) q.append('status', selectedStatus);
       q.append('page', pageToFetch.toString());
       q.append('size', '20');
-      q.append('sort', 'createdAt,desc');
+      if (selectedStatus === 'ACTIVE') {
+        q.append('updatedAfter', new Date(Date.now() - LIVE_WINDOW_MS).toISOString());
+        q.append('sort', 'updatedAt,desc');
+      } else {
+        q.append('sort', 'createdAt,desc');
+      }
       const res = await fetch(`/api/sessions?${q.toString()}`);
       if (res.ok) {
         const data = await res.json();
@@ -94,30 +106,130 @@
         page = data.pageable?.pageNumber ?? 0;
         totalPages = data.totalPages ?? 0;
         totalElements = data.totalElements ?? 0;
-      } else {
+      } else if (!silent) {
         listError = $t.listError;
         sessions = [];
       }
     } catch (e) {
       console.error(e);
-      listError = $t.listError;
-      sessions = [];
+      if (!silent) {
+        listError = $t.listError;
+        sessions = [];
+      }
     } finally {
-      loading = false;
+      if (!silent) loading = false;
+    }
+  }
+
+  function connectLiveList() {
+    try {
+      if (listEventSource) {
+        listEventSource.close();
+      }
+      listEventSource = new EventSource('/api/sessions/live');
+
+      listEventSource.onopen = () => {
+        sseRetryCount = 0;
+        // console.log for visibility when testing real-time
+        // console.log('[SessionList] SSE connected');
+      };
+
+      listEventSource.addEventListener('session_created', (e) => {
+        try {
+          const msg = JSON.parse(e.data || '{}');
+          if (!msg || !msg.sessionId) return;
+
+           if (msg.type === 'session_stopped') {
+             sessions = sessions.map((s: any) =>
+               s.sessionId === msg.sessionId ? { ...s, status: 'STOPPED', endAt: msg.endedAt || s.endAt } : s
+             );
+             return;
+           }
+           if (msg.type === 'session_deleted') {
+             sessions = sessions.filter((s: any) => s.sessionId !== msg.sessionId);
+             return;
+           }
+
+
+           // Always surface new sessions at the top on first page.
+           // This is the key for "실시간 붙기" (real-time attach).
+           if (page === 0 && selectedStatus !== 'STOPPED') {
+            const idx = sessions.findIndex((s: any) => s.sessionId === msg.sessionId);
+            const now = new Date().toISOString();
+            const fresh = {
+              sessionId: msg.sessionId,
+              projectKey: msg.projectKey || '',
+              projectName: null,
+              userId: msg.userId || '',
+              status: 'ACTIVE',
+              tags: msg.tags || {},
+              createdAt: msg.createdAt || now,
+              updatedAt: now,
+              endAt: null
+            };
+            if (idx >= 0) {
+              sessions[idx] = fresh;
+            } else {
+              sessions = [fresh, ...sessions].slice(0, 60);
+              totalElements = (totalElements || 0) + 1;
+            }
+          }
+        } catch (err) {
+          // ignore bad payload
+        }
+      });
+
+      listEventSource.addEventListener('connected', () => {
+        // initial connected ack from server — do a silent refresh of page 0
+        // so anything that arrived between initial load and SSE connect shows up immediately
+        fetchSessions(0, true);
+      });
+
+      listEventSource.onerror = () => {
+        // Auto-reconnect with backoff so real-time "sticks" even after hiccups
+        if (listEventSource) {
+          listEventSource.close();
+          listEventSource = null;
+        }
+        const delay = Math.min(1000 * Math.pow(1.6, sseRetryCount || 0), 15000);
+        sseRetryCount = (sseRetryCount || 0) + 1;
+        if (sseRetryTimer) clearTimeout(sseRetryTimer);
+        sseRetryTimer = setTimeout(() => {
+          connectLiveList();
+        }, delay);
+      };
+    } catch (e) {
+      // fallback: we still have the initial fetch
     }
   }
 
   onMount(() => {
     if (advancedActive) filtersOpen = true;
     fetchSessions();
+
+    // Robust real-time SSE with reconnect
+    connectLiveList();
+  });
+
+  onDestroy(() => {
+    if (sseRetryTimer) {
+      clearTimeout(sseRetryTimer);
+      sseRetryTimer = null;
+    }
+    if (listEventSource) {
+      listEventSource.close();
+      listEventSource = null;
+    }
   });
 
   function getSessionStatus(session: any): { label: string; cls: string } {
-    if (session.status === 'STOPPED') return { label: $t.statusEnded, cls: 'status-ended' };
-    const diffMin = (Date.now() - new Date(session.updatedAt).getTime()) / 60000;
-    if (diffMin < 2)  return { label: $t.statusLive, cls: 'status-live' };
-    if (diffMin < 30) return { label: $t.statusIdle, cls: 'status-idle' };
-    return { label: $t.statusEnded, cls: 'status-ended' };
+    if (session.status === 'STOPPED') {
+      return { label: $t.statusEnded, cls: 'status-ended' };
+    }
+    if (isSessionLive(session)) {
+      return { label: $t.statusLive, cls: 'status-live' };
+    }
+    return { label: $t.statusIdle, cls: 'status-idle' };
   }
 
   function relativeDate(iso: string): string {
@@ -348,7 +460,7 @@
         {/if}
       </div>
     {:else}
-      {#each sessions as session}
+      {#each sessions as session (session.sessionId)}
         {@const st = getSessionStatus(session)}
         <button
           type="button"

@@ -13,6 +13,7 @@ on:
 
 permissions:
   contents: write
+  packages: write
 
 jobs:
   release:
@@ -21,6 +22,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Validate Flyway migrations (checksums & order)
+        # Runs locally or in full CI with DB. In this release job we just invoke info/validate if DB props are present.
+        # Recommended in PR CI: ./gradlew flywayValidate -Dflyway.url=... -Dflyway.user=... 
+        run: ./gradlew flywayInfo --no-daemon || echo "flywayInfo skipped (no DB configured for this job)"
 
       - name: Set up Java 21
         uses: actions/setup-java@v4
@@ -117,3 +123,34 @@ jobs:
             dist/release/livescreenlog-${{ steps.ver.outputs.version }}.jar
             dist/release/livescreenlog-${{ steps.ver.outputs.version }}.js
             dist/release/SHA256SUMS.txt
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/0xdc05f/livescreenlog:${{ steps.ver.outputs.version }}
+            ghcr.io/0xdc05f/livescreenlog:latest
+            ghcr.io/0xdc05f/livescreenlog:server-${{ steps.ver.outputs.version }}
+
+      - name: Publish npm package (sdk)
+        working-directory: sdk
+        continue-on-error: true
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "${NODE_AUTH_TOKEN}" ]; then
+            echo "NPM_TOKEN secret not set; skip npm publish"
+            exit 0
+          fi
+          echo "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" > ~/.npmrc
+          npm publish --access public

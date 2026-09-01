@@ -8,10 +8,13 @@ import com.livescreenlog.app.dto.SessionResponse;
 import com.livescreenlog.app.repository.ProjectRepository;
 import com.livescreenlog.app.repository.SessionEventRepository;
 import com.livescreenlog.app.repository.SessionMetadataRepository;
+import com.livescreenlog.app.service.AuditService;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,6 +37,8 @@ public class SessionReadService {
     private final SessionEventRepository eventRepository;
     private final ProjectRepository projectRepository;
     private final LiveScreenLogProperties properties;
+    private final UserProjectAccessService userProjectAccessService;
+    private final AuditService auditService;
 
     private final Map<String, String> projectNameCache = new ConcurrentHashMap<>();
     private final AtomicLong projectCacheLoadedAt = new AtomicLong(0L);
@@ -41,9 +46,12 @@ public class SessionReadService {
     public Page<SessionResponse> searchSessions(
             ZonedDateTime startDate, ZonedDateTime endDate,
             String userId, String source, String status, String projectKey, String queryVal,
+            ZonedDateTime updatedAfter,
             Pageable pageable) {
 
         refreshProjectCacheIfNeeded();
+
+        List<String> allowedProjectKeys = userProjectAccessService.getAllowedProjectKeys();
 
         Specification<SessionMetadata> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -94,6 +102,18 @@ public class SessionReadService {
                 predicates.add(cb.or(queryPredicates.toArray(new Predicate[0])));
             }
 
+            if (updatedAfter != null) {
+                predicates.add(cb.greaterThanOrEqualTo(root.get("updatedAt"), updatedAfter));
+            }
+
+            if (allowedProjectKeys != null) {
+                if (allowedProjectKeys.isEmpty()) {
+                    predicates.add(cb.equal(root.get("sessionId"), "none"));
+                } else {
+                    predicates.add(root.get("projectKey").in(allowedProjectKeys));
+                }
+            }
+
             return cb.and(predicates.toArray(new Predicate[0]));
         };
 
@@ -103,17 +123,35 @@ public class SessionReadService {
 
     public SessionResponse getSessionDetails(String sessionId) {
         refreshProjectCacheIfNeeded();
-        return metadataRepository.findById(sessionId)
-                .map(m -> SessionResponse.from(m, projectNameCache.get(m.getProjectKey())))
-                .orElse(null);
+        if (!userProjectAccessService.hasAccessToSession(sessionId)) {
+            return null;
+        }
+        var opt = metadataRepository.findById(sessionId);
+        if (opt.isPresent()) {
+            var m = opt.get();
+            SessionResponse resp = SessionResponse.from(m, projectNameCache.get(m.getProjectKey()));
+            auditService.log("VIEW", sessionId, m.getProjectKey(), Map.of("via", "getSessionDetails"));
+            return resp;
+        }
+        return null;
+    }
+
+    public boolean canReadSession(String sessionId) {
+        return userProjectAccessService.hasAccessToSession(sessionId);
     }
 
     public List<SessionEvent> getSessionEvents(String sessionId) {
+        if (!userProjectAccessService.hasAccessToSession(sessionId)) {
+            return List.of();
+        }
         int cap = Math.max(1, properties.getMaxEventFullDumpSize());
         return eventRepository.findBySessionIdPaged(sessionId, null, cap);
     }
 
     public SessionEventsPage getSessionEventsPage(String sessionId, Long afterId, Integer limit) {
+        if (!userProjectAccessService.hasAccessToSession(sessionId)) {
+            return new SessionEventsPage(List.of(), null, false);
+        }
         int defaultSize = Math.max(1, properties.getDefaultEventPageSize());
         int maxSize = Math.max(defaultSize, properties.getMaxEventPageSize());
         int pageSize = limit == null ? defaultSize : Math.min(Math.max(limit, 1), maxSize);
@@ -122,6 +160,29 @@ public class SessionReadService {
         List<SessionEvent> events = hasMore ? batch.subList(0, pageSize) : batch;
         Long nextAfterId = events.isEmpty() ? null : events.get(events.size() - 1).id();
         return new SessionEventsPage(events, nextAfterId, hasMore);
+    }
+
+    public List<SessionResponse> getRecommendedSessions(int limit) {
+        refreshProjectCacheIfNeeded();
+        List<String> allowedProjectKeys = userProjectAccessService.getAllowedProjectKeys();
+        Specification<SessionMetadata> spec = (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            predicates.add(cb.equal(root.get("hasError"), true));
+            if (allowedProjectKeys != null) {
+                if (allowedProjectKeys.isEmpty()) {
+                    predicates.add(cb.equal(root.get("sessionId"), "none"));
+                } else {
+                    predicates.add(root.get("projectKey").in(allowedProjectKeys));
+                }
+            }
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
+        Pageable pageable = PageRequest.of(0, Math.max(1, limit), Sort.by(Sort.Direction.DESC, "updatedAt"));
+        return metadataRepository.findAll(spec, pageable)
+                .getContent()
+                .stream()
+                .map(m -> SessionResponse.from(m, projectNameCache.get(m.getProjectKey())))
+                .toList();
     }
 
     private void refreshProjectCacheIfNeeded() {

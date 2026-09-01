@@ -19,7 +19,8 @@ public record SessionResponse(
         String sdkIntegration,
         ZonedDateTime createdAt,
         ZonedDateTime updatedAt,
-        ZonedDateTime endAt
+        ZonedDateTime endAt,
+        Boolean hasError
 ) {
     public static SessionResponse from(SessionMetadata metadata) {
         return from(metadata, null);
@@ -40,7 +41,8 @@ public record SessionResponse(
                 metadata.getSdkIntegration(),
                 metadata.getCreatedAt(),
                 metadata.getUpdatedAt(),
-                metadata.getEndAt()
+                metadata.getEndAt(),
+                metadata.getHasError()
         );
     }
 }

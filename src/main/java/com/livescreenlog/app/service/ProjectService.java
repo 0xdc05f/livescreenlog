@@ -16,10 +16,13 @@ import java.util.UUID;
 public class ProjectService {
 
     private final ProjectRepository projectRepository;
+    private final UserProjectAccessService userProjectAccessService;
 
     @Transactional(readOnly = true)
     public List<ProjectDto> listAll() {
+        List<String> allowed = userProjectAccessService.getAllowedProjectKeys();
         return projectRepository.findAll().stream()
+                .filter(p -> allowed == null || allowed.contains(p.getApiKey()))
                 .map(this::toDto)
                 .toList();
     }
@@ -59,6 +62,23 @@ public class ProjectService {
                 .createdAt(project.getCreatedAt())
                 .recordingMode(mode != null ? mode.trim() : "ALL")
                 .targetUsers(targetUsers != null ? targetUsers.trim() : null)
+                .build();
+        return toDto(projectRepository.save(updated));
+    }
+
+    @Transactional
+    public ProjectDto rotateApiKey(Long id) {
+        Project project = projectRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Project not found"));
+        String apiKey = "sl_" + UUID.randomUUID().toString().replace("-", "");
+        Project updated = Project.builder()
+                .id(project.getId())
+                .name(project.getName())
+                .description(project.getDescription())
+                .apiKey(apiKey)
+                .createdAt(project.getCreatedAt())
+                .recordingMode(project.getRecordingMode())
+                .targetUsers(project.getTargetUsers())
                 .build();
         return toDto(projectRepository.save(updated));
     }

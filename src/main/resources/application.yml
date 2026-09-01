@@ -3,6 +3,9 @@ spring:
     name: livescreenlog
   profiles:
     active: dev
+  security:
+    filter:
+      dispatcher-types: request
   threads:
     virtual:
       enabled: true
@@ -24,6 +27,13 @@ spring:
       max-request-size: 2MB
 
 server:
+  servlet:
+    session:
+      timeout: 8h
+      cookie:
+        http-only: true
+        same-site: lax
+        max-age: 8h
   tomcat:
     max-http-form-post-size: 2MB
     max-swallow-size: 2MB

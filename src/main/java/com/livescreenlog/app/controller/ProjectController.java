@@ -47,4 +47,13 @@ public class ProjectController {
             return ResponseEntity.badRequest().build();
         }
     }
+
+    @PostMapping("/{id}/rotate-key")
+    public ResponseEntity<ProjectDto> rotateApiKey(@PathVariable Long id) {
+        try {
+            return ResponseEntity.ok(projectService.rotateApiKey(id));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
 }

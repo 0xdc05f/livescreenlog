@@ -25,6 +25,14 @@ public class LiveScreenLogProperties {
         private String projectKey;
         private List<String> allowedCaptureOrigins;
         private boolean dashboardEnabled = false;
+
+        /**
+         * Used both for future dashboard login and for initial SUPER_ADMIN bootstrap.
+         * On first startup, if the users table is empty, a SUPER_ADMIN will be created
+         * with this username + (bcrypt-hashed) password if provided.
+         * Additional admins can be created via --create-admin=user:pass:role CLI (or LIVESCREENLOG_CREATE_ADMIN env)
+         * even if users exist (if username not present); role defaults to ADMIN.
+         */
         private String dashboardUsername = "admin";
         private String dashboardPassword;
     }

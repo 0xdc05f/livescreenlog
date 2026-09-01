@@ -59,7 +59,7 @@ public class SessionLiveService {
                 emitter.send(SseEmitter.event().name("message").data(payload));
             } catch (IOException e) {
                 log.error("Failed to send SSE for session {}", sessionId, e);
-                emitter.completeWithError(e);
+                emitter.complete();
             }
         };
 
@@ -70,7 +70,7 @@ public class SessionLiveService {
             try {
                 emitter.send(SseEmitter.event().comment("ping"));
             } catch (Exception e) {
-                emitter.completeWithError(e);
+                emitter.complete();
             }
         }, PING_INTERVAL_SECONDS, PING_INTERVAL_SECONDS, TimeUnit.SECONDS);
 
@@ -91,7 +91,7 @@ public class SessionLiveService {
         try {
             emitter.send(SseEmitter.event().name("connected").data("SSE connected for session " + sessionId));
         } catch (IOException e) {
-            emitter.completeWithError(e);
+            emitter.complete();
         }
 
         return emitter;
