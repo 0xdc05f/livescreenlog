@@ -6,8 +6,8 @@ Thanks for helping improve LiveScreenLog.
 
 Requirements:
 
-- Java 21+
-- Node.js 20+ (frontend + SDK)
+- Java 25+
+- Node.js 22+ (frontend + SDK)
 - Docker (PostgreSQL 16 + Valkey/Redis)
 
 ```bash
@@ -64,7 +64,7 @@ Publishing binaries: tag `vX.Y.Z` (must match `version.json`) and push — CI cr
 
 ## Code style
 
-- Java 21, Spring Boot 4.x, Virtual Threads enabled.
+- Java 25, Spring Boot 4.1.1, Virtual Threads enabled.
 - Prefer records for DTOs; Flyway-only schema changes.
 - Browser capture defaults should stay privacy-safe (`maskAllInputs`, block/ignore classes).
 

@@ -5,11 +5,11 @@
 
 ### 다운로드
 
-빌드 없이 쓰려면 GitHub Releases에서 받으세요. 베타 태그(`v0.2.0` 등) 이후 링크가 활성화됩니다.
+빌드 없이 쓰려면 GitHub Releases에서 받으세요. 베타 태그(`v0.3.0` 등) 이후 링크가 활성화됩니다.
 
 | 산출물 | 최신 | 설명 |
 |--------|------|------|
-| **Server JAR** | [livescreenlog.jar](https://github.com/0xdc05f/livescreenlog/releases/latest/download/livescreenlog.jar) | JRE 21 + PostgreSQL + Valkey/Redis |
+| **Server JAR** | [livescreenlog.jar](https://github.com/0xdc05f/livescreenlog/releases/latest/download/livescreenlog.jar) | JRE 25 + PostgreSQL + Valkey/Redis |
 | **Browser JS** | [livescreenlog.js](https://github.com/0xdc05f/livescreenlog/releases/latest/download/livescreenlog.js) | UMD · `window.LiveScreenLog` |
 | **전체 릴리스** | [Releases 페이지](https://github.com/0xdc05f/livescreenlog/releases) | 버전별 JAR/JS + `SHA256SUMS.txt` |
 | **npm SDK** (선택) | [`livescreenlog`](https://www.npmjs.com/package/livescreenlog) | rrweb이 내부에 번들됨. 또는 `/livescreenlog.js` 사용 |
@@ -58,7 +58,7 @@ rrweb으로 DOM 변화를 캡처하고, PostgreSQL에 저장하며, Valkey/Redis
 
 | 구성 | 역할 |
 |------|------|
-| App (JRE 21 / Spring Boot) | API, 대시보드, 정적 SDK |
+| App (JRE 25 / Spring Boot) | API, 대시보드, 정적 SDK |
 | PostgreSQL 16+ | 세션 메타데이터 및 이벤트 (Flyway) |
 | Valkey 또는 Redis | Pub/Sub 라이브 테일, 레이트 리밋 |
 | Browser SDK | 캡처 + 푸시 (Mode B) 클라이언트 |
@@ -68,13 +68,13 @@ rrweb으로 DOM 변화를 캡처하고, PostgreSQL에 저장하며, Valkey/Redis
 ## 2. 요구 사항
 
 **런타임 (서버에 설치)**
-- JRE 21 이상 (실행만 할 때; 빌드 시 JDK 21)
+- JRE 25 이상 (실행만 할 때; 빌드 시 JDK 25)
 - PostgreSQL 16+
 - Valkey 또는 Redis
 - (선택) Docker, 리버스 프록시(TLS)
 
 **빌드 머신에만 필요**
-- Node.js 20+ (프론트/SDK 재빌드)
+- Node.js 22+ (프론트/SDK 재빌드)
 - Gradle Wrapper (`./gradlew`)
 
 ---
@@ -83,7 +83,7 @@ rrweb으로 DOM 변화를 캡처하고, PostgreSQL에 저장하며, Valkey/Redis
 
 ### 3.0 빌드된 JAR로 실행 (운영자용)
 
-소스를 빌드하지 않을 때. JRE 21, Postgres, Valkey/Redis, 환경변수 필요.
+소스를 빌드하지 않을 때. JRE 25, Postgres, Valkey/Redis, 환경변수 필요.
 
 ```bash
 curl -fsSL -o livescreenlog.jar \
@@ -162,7 +162,7 @@ YAML 접두사: `livescreenlog.*`
     Valkey/Redis (비공개망)
 ```
 
-대상 서버에는 **JRE 21 + jar + Postgres + Valkey/Redis**면 충분합니다.  
+대상 서버에는 **JRE 25 + jar + Postgres + Valkey/Redis**면 충분합니다.  
 JDK·Node·Gradle은 빌드 머신/CI에만 있으면 됩니다.
 
 ### 5.2 Bare metal (jar 직접 실행)
@@ -235,7 +235,7 @@ URL 예: `/?view=settings&tab=stats`. 브라우저 뒤로가기는 설정↔리�
 
 ```html
 <script src="https://YOUR-LSL-HOST/livescreenlog.js"></script>
-<!-- 또는: https://github.com/0xdc05f/livescreenlog/releases/download/v0.2.0/livescreenlog-0.2.0.js -->
+<!-- 또는: https://github.com/0xdc05f/livescreenlog/releases/download/v0.3.0/livescreenlog-0.3.0.js -->
 <script>
   LiveScreenLog.init({
     apiKey: 'YOUR_PROJECT_API_KEY',
@@ -247,7 +247,7 @@ URL 예: `/?view=settings&tab=stats`. 브라우저 뒤로가기는 설정↔리�
   });
 </script>
 ```
-Note: 동적 CDN fallback은 `rrweb@2.1.1`. 번들 SDK는 rrweb 2.1.1을 포함합니다.
+Note: 동적 CDN fallback은 `rrweb@2.1.4`. 번들 SDK는 rrweb 2.1.4을 포함합니다.
 
 ### 7.3 npm / ESM
 

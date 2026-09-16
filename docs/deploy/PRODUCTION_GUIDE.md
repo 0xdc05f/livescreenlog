@@ -59,11 +59,11 @@ docker run -d \
   -e REDIS_PORT=6379 \
   -e LIVESCREENLOG_HMAC_SECRET='여기에_32자_이상_진짜_랜덤_문자열_넣으세요' \
   -e LIVESCREENLOG_ALLOWED_CAPTURE_ORIGINS='https://your-site.com,https://admin.your-site.com' \
-  ghcr.io/0xdc05f/livescreenlog:0.2.0
+  ghcr.io/0xdc05f/livescreenlog:0.3.0
 ```
 
 이미지:
-- `ghcr.io/0xdc05f/livescreenlog:0.2.0` (권장)
+- `ghcr.io/0xdc05f/livescreenlog:0.3.0` (권장)
 - `ghcr.io/0xdc05f/livescreenlog:latest`
 
 ### 2.4 프로젝트 생성 및 API Key 발급
@@ -94,7 +94,7 @@ LiveScreenLog.init({
 **CDN 방식** (번들러 없이):
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/livescreenlog@0.1.1/dist/livescreenlog.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/livescreenlog@0.3.0/dist/livescreenlog.js"></script>
 <script>
   LiveScreenLog.init({
     apiKey: '여기에_복사한_API_KEY',
@@ -119,7 +119,7 @@ Vultr Postgres + Docker Valkey + `docker run ghcr.io/0xdc05f/livescreenlog` + �
 
 **CDN (번들러 없이)**:
 ```html
-<script src="https://cdn.jsdelivr.net/npm/livescreenlog@0.1.1/dist/livescreenlog.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/livescreenlog@0.3.0/dist/livescreenlog.js"></script>
 <script>
   LiveScreenLog.init({
     apiKey: '여기에_발급받은_API_KEY',
@@ -155,6 +155,6 @@ docker compose -f deploy/docker-compose.yml --env-file .env up -d
 ## 6. 이미지 버전
 
 - `ghcr.io/0xdc05f/livescreenlog:latest`
-- `ghcr.io/0xdc05f/livescreenlog:0.2.0`
+- `ghcr.io/0xdc05f/livescreenlog:0.3.0`
 
 릴리스 태그를 기준으로 이미지가 생성됩니다.

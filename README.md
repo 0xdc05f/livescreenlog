@@ -2,7 +2,7 @@
 
 Self-hosted **session replay** server: capture browser sessions with rrweb, store them in PostgreSQL, live-tail with Redis/Valkey, and review them in a built-in dashboard.
 
-Java 21 · Spring Boot 4.x · PostgreSQL 16+ · Valkey/Redis · Svelte dashboard · Browser SDK
+Java 25 · Spring Boot 4.1.1 · PostgreSQL 16+ · Valkey/Redis · Svelte dashboard · Browser SDK
 
 ---
 
@@ -41,7 +41,7 @@ Java 21 · Spring Boot 4.x · PostgreSQL 16+ · Valkey/Redis · Svelte dashboard
      -e REDIS_PORT=6379 \
      -e LIVESCREENLOG_HMAC_SECRET='a-very-strong-random-string-at-least-32-chars' \
      -e LIVESCREENLOG_ALLOWED_CAPTURE_ORIGINS='https://your-site.com,https://admin.your-site.com' \
-      ghcr.io/0xdc05f/livescreenlog:0.2.0
+      ghcr.io/0xdc05f/livescreenlog:0.3.0
    ```
 
    Or use Docker Compose (recommended for local/production testing):
@@ -73,7 +73,7 @@ Java 21 · Spring Boot 4.x · PostgreSQL 16+ · Valkey/Redis · Svelte dashboard
          retries: 5
 
      app:
-        image: ghcr.io/0xdc05f/livescreenlog:0.2.0
+        image: ghcr.io/0xdc05f/livescreenlog:0.3.0
        depends_on:
          postgres:
            condition: service_healthy
@@ -154,7 +154,7 @@ LiveScreenLog.setTags({ dept: user.dept });
 
 CDN (no build tool):
 ```html
-<script src="https://cdn.jsdelivr.net/npm/livescreenlog@0.1.1/dist/livescreenlog.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/livescreenlog@0.3.0/dist/livescreenlog.js"></script>
 <script>
   LiveScreenLog.init({ dsn: '...', apiKey: '...', id: 'user-001' });
 </script>
@@ -163,7 +163,7 @@ CDN (no build tool):
 ```bash
 curl -fsSL -o livescreenlog.jar \
   https://github.com/0xdc05f/livescreenlog/releases/latest/download/livescreenlog.jar
-# JRE 21 + Postgres + Valkey/Redis + env — see Manual.md
+# JRE 25 + Postgres + Valkey/Redis + env — see Manual.md
 java -jar livescreenlog.jar
 ```
 

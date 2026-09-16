@@ -31,7 +31,7 @@ docker compose -f deploy/docker-compose.yml down
 공식 이미지는 GHCR에 있습니다:
 
 ```bash
-docker pull ghcr.io/0xdc05f/livescreenlog:0.2.0
+docker pull ghcr.io/0xdc05f/livescreenlog:0.3.0
 docker pull ghcr.io/0xdc05f/livescreenlog:latest
 ```
 

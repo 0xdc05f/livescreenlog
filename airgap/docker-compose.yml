@@ -1,0 +1,69 @@
+# Air-gap import stack. Load the app image first:
+#   docker load < images/livescreenlog-0.3.0.tar.gz
+# Then:
+#   cp .env.example .env
+#   docker compose -f docker-compose.yml --env-file .env up -d
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: livescreenlog-postgres
+    ports:
+      - "127.0.0.1:5432:5432"
+    environment:
+      POSTGRES_USER: ${DB_USER:-livescreenlog_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-livescreenlog_password}
+      POSTGRES_DB: ${DB_NAME:-livescreenlog}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  valkey:
+    image: valkey/valkey:alpine
+    container_name: livescreenlog-valkey
+    ports:
+      - "127.0.0.1:6379:6379"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    image: ghcr.io/0xdc05f/livescreenlog:0.3.0
+    container_name: livescreenlog-app
+    ports:
+      - "127.0.0.1:8080:8080"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_HOST: postgres
+      DB_PORT: ${DB_PORT:-5432}
+      DB_NAME: ${DB_NAME:-livescreenlog}
+      DB_USER: ${DB_USER:-livescreenlog_user}
+      DB_PASSWORD: ${DB_PASSWORD}
+      REDIS_HOST: valkey
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      LIVESCREENLOG_HMAC_SECRET: ${LIVESCREENLOG_HMAC_SECRET}
+      LIVESCREENLOG_ALLOWED_CAPTURE_ORIGINS: ${LIVESCREENLOG_ALLOWED_CAPTURE_ORIGINS}
+      LIVESCREENLOG_DASHBOARD_ENABLED: true
+      LIVESCREENLOG_DASHBOARD_USERNAME: ${LIVESCREENLOG_DASHBOARD_USERNAME:-admin}
+      LIVESCREENLOG_DASHBOARD_PASSWORD: ${LIVESCREENLOG_DASHBOARD_PASSWORD}
+      LIVESCREENLOG_RETENTION_DAYS: ${LIVESCREENLOG_RETENTION_DAYS:-30}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

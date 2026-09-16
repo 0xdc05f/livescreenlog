@@ -85,11 +85,11 @@ Prefer publishing the same version as the git tag. Not required for self-host: o
 
 ## Docker image (optional) · Docker (선택)
 
-Tag `v0.2.0` triggers GHCR push (`ghcr.io/0xdc05f/livescreenlog:0.2.0`, `:latest`, `:server-0.2.0`). npm publish needs repo secret `NPM_TOKEN`.
+Tag `v0.3.0` triggers GHCR push (`ghcr.io/0xdc05f/livescreenlog:0.3.0`, `:latest`, `:server-0.3.0`). npm publish needs repo secret `NPM_TOKEN`.
 
 ```bash
 ./gradlew bootJar
-docker build -f deploy/Dockerfile -t ghcr.io/0xdc05f/livescreenlog:0.2.0 .
+docker build -f deploy/Dockerfile -t ghcr.io/0xdc05f/livescreenlog:0.3.0 .
 ```
 
 ## Layout reminder · 구조

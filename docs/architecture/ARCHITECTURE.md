@@ -11,7 +11,7 @@
 | Component | Technology | Description |
 | :--- | :--- | :--- |
 | **Client (SDK)** | rrweb, JavaScript | 웹 브라우저에서 사용자 상호작용(DOM 변화, 마우스 이동 등)을 캡처하여 백엔드로 전송합니다. |
-| **Backend Server** | Java 21, Spring Boot 3.x | 수집된 이벤트를 처리하고, 데이터를 저장하며, 대시보드에 API를 제공합니다. Virtual Threads를 활용하여 동시성 처리 성능을 극대화합니다. |
+| **Backend Server** | Java 25, Spring Boot 4.1.1 | 수집된 이벤트를 처리하고, 데이터를 저장하며, 대시보드에 API를 제공합니다. Virtual Threads를 활용하여 동시성 처리 성능을 극대화합니다. |
 | **Database** | PostgreSQL 16+ | 세션 메타데이터와 rrweb 이벤트 페이로드(JSONB)를 영구적으로 저장합니다. 일자별, 사용자별 검색을 지원합니다. |
 | **Message Broker** | Redis | 라이브 테일링 기능을 위해 Pub/Sub 메커니즘을 제공합니다. 수신된 이벤트를 실시간으로 구독자(대시보드)에게 브로드캐스트합니다. |
 
@@ -41,7 +41,7 @@
 
 ## 4. Concurrency Model
 
-Java 21 Virtual Threads (`spring.threads.virtual.enabled=true`)로 I/O 바운드 작업(DB, Redis, SSE)을 처리합니다.
+Java 25 Virtual Threads (`spring.threads.virtual.enabled=true`)로 I/O 바운드 작업(DB, Redis, SSE)을 처리합니다.
 
 ## 5. Mode B Push Signaling
 

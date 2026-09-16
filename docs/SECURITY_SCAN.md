@@ -1,124 +1,66 @@
 # Security Scan Report
 
-> Snapshot of a one-time local scan. Not a live CI badge. Re-run tools before release.
+> Snapshot of a local scan. Not a live CI badge. Re-run tools before release.
 
-**Date:** 2026-07-22
+**Date:** 2026-09-16
 
 ## What was scanned
 
-| Target | Tool | Command / scope |
-|--------|------|-----------------|
-| `frontend/` | npm audit | `npm audit` + `npm audit --json` |
-| `sdk/` | npm audit | `npm audit` + `npm audit --json` |
-| `frontend/package.json` | Snyk Open Source | `snyk test --file=frontend/package.json --package-manager=npm --severity-threshold=high` |
-| `sdk/package.json` | Snyk Open Source | `snyk test --file=sdk/package.json --package-manager=npm --severity-threshold=high` |
-| Repository root | Snyk Code | `snyk code test .` |
-| MCP packages | npx help | `@playwright/mcp@latest`, `chrome-devtools-mcp@latest` |
+| Target | Tool | Scope |
+|--------|------|-------|
+| `frontend/` | npm audit | current lockfile |
+| `sdk/` | npm audit | current lockfile |
+| `frontend/` | Snyk Open Source | npm, including dev |
+| `sdk/` | Snyk Open Source | npm, including dev |
+| Repository | Snyk Open Source | Maven (Spring Boot BOM) |
+| Repository | Snyk Code | SAST |
 
-Raw outputs were also written under `/tmp/`:
+## npm audit
 
-- `/tmp/npm-audit-frontend.json`, `/tmp/npm-audit-frontend.txt`
-- `/tmp/npm-audit-sdk.json`, `/tmp/npm-audit-sdk.txt`
-- `/tmp/snyk-frontend.txt`, `/tmp/snyk-sdk.txt`, `/tmp/snyk-code.txt`
+| Target | Critical | High | Moderate | Low | Total |
+|--------|----------|------|----------|-----|------:|
+| `frontend/` | 0 | 0 | 0 | 0 | **0** |
+| `sdk/` | 0 | 0 | 0 | 0 | **0** |
 
-## npm audit counts
+## Snyk Open Source (this tree)
 
-Parsed from `/tmp/npm-audit-frontend.json` and `/tmp/npm-audit-sdk.json` via `jq`.
+| Target | Result |
+|--------|--------|
+| `frontend/` | 0 issues (`rrweb@2.1.4`, `postcss@8.5.28`, `nanoid@3.3.19`) |
+| `sdk/` | 0 issues |
+| Maven / Spring Boot 4.1.1 | Jackson CVEs on BOM 2.21.5 / 3.1.5 — **patched** |
 
-### Frontend (`frontend/`)
+Patched in `build.gradle` (Direct Upgrade, low breakability):
 
-| Severity | Count |
-|----------|------:|
-| Critical | 0 |
-| High | 0 |
-| Moderate | 0 |
-| Low | 0 |
-| Info | 0 |
-| **Total** | **0** |
+| Package | From | To |
+|---------|------|-----|
+| `com.fasterxml.jackson.core:jackson-databind` | 2.21.5 | **2.21.6** |
+| `tools.jackson.core:jackson-databind` | 3.1.5 | **3.1.6** |
 
-Dependencies (metadata): prod 15, dev 76, optional 33, total 90.
+Snyk IDs addressed: `SNYK-JAVA-COMFASTERXMLJACKSONCORE-19778370` (high), `SNYK-JAVA-TOOLSJACKSONCORE-19778371` (high), plus four medium (CVE-2026-19032, CVE-2026-83557 on both Jackson 2 and 3).
 
-Human summary: `found 0 vulnerabilities`
+## Snyk Code
 
-### SDK (`sdk/`)
+Existing design findings, not dependency upgrades:
 
-| Severity | Count |
-|----------|------:|
-| Critical | 0 |
-| High | 0 |
-| Moderate | 0 |
-| Low | 0 |
-| Info | 0 |
-| **Total** | **0** |
+- CSRF disabled in `SecurityConfig` (ingest API + HMAC session tokens; dashboard uses cookie session).
+- Low CSRF notes on admin/project controllers follow from that.
+- Medium format-string note in `sdk/src/index.ts` (console logging of location) — not a library bump.
 
-Dependencies (metadata): prod 2, dev 67, optional 29, peer 12, total 80.
+Snyk Secrets is not enabled for the current org.
 
-Human summary: `found 0 vulnerabilities`
+## Held (not upgraded)
 
-## Snyk results
-
-Snyk did **not** return vulnerability counts. Scans failed before producing a report.
-
-| Scan | Result | Notes |
-|------|--------|--------|
-| Open Source — frontend | Failed | `SNYK-0003` — Client request cannot be processed (HTTP 400 Bad Request) |
-| Open Source — sdk | Failed | `SNYK-0003` — Client request cannot be processed (HTTP 400 Bad Request) |
-| Code — repository | Failed | `SNYK-0005` — Authentication error (HTTP 401 Unauthorized). Message: use `snyk auth` |
-
-### Snyk auth required?
-
-**Yes.**
-
-- `snyk code test` explicitly requires authentication (`SNYK-0005` / 401).
-- Open Source tests returned `SNYK-0003` (400) rather than a clean vuln report; after authenticating with `snyk auth`, re-run all three Snyk commands. Auth may also be needed or helpful for Open Source depending on account/token state.
-
-Snyk severity counts: **unavailable** (scans did not complete).
-
-## Top issues
-
-### npm audit
-
-No vulnerabilities reported for frontend or SDK. No package names or fix versions to list.
-
-### Snyk
-
-No issue inventory available (auth / client errors).
-
-### MCP package verification
-
-Both packages resolved and printed help successfully:
-
-- `@playwright/mcp@latest` — help/usage OK
-- `chrome-devtools-mcp@latest` — help/usage OK
-
-No install/runtime failures observed for `--help` checks. (npx also emitted a deprecation notice for transitive `boolean@3.2.0` while pulling Snyk; not an app dependency finding from npm audit.)
-
-## Recommended next actions
-
-1. **Authenticate Snyk and re-scan**
-   - Run `snyk auth`
-   - Re-run:
-     - `npx -y snyk@latest test --file=frontend/package.json --package-manager=npm --severity-threshold=high`
-     - `npx -y snyk@latest test --file=sdk/package.json --package-manager=npm --severity-threshold=high`
-     - `npx -y snyk@latest code test .`
-   - If `SNYK-0003` persists after auth, run with debug and doctor as suggested: `snyk <command> -d 2>&1 | snyk doctor --stdin`
-
-2. **Keep npm audit clean**
-   - Continue running `npm audit` in CI for `frontend/` and `sdk/`
-   - Prefer `npm audit fix` (non-breaking) when future findings appear; review breaking upgrades before `npm audit fix --force`
-
-3. **Optional hardening**
-   - Pin/lockfile reviews on dependency upgrades
-   - Add periodic Snyk (or equivalent SCA + SAST) to CI once auth/org token is available
-   - Monitor MCP tooling separately from app runtime deps (`@playwright/mcp`, `chrome-devtools-mcp` are dev/tooling, not production app bundles unless explicitly shipped)
-
-4. **No immediate dependency upgrades required** from this npm audit pass (0 findings).
+- TypeScript 7
+- Spring Boot 4.2.0-M1
+- Flyway 13 (runtime stays on BOM Flyway 12.4.0)
 
 ## Summary
 
-| Source | Critical | High | Medium/Moderate | Status |
-|--------|----------|------|-----------------|--------|
+| Source | Critical | High | Medium | Status |
+|--------|----------|------|--------|--------|
 | npm audit — frontend | 0 | 0 | 0 | Clean |
 | npm audit — sdk | 0 | 0 | 0 | Clean |
-| Snyk Open Source | — | — | — | Failed (SNYK-0003) |
-| Snyk Code | — | — | — | Failed — **auth required** (SNYK-0005) |
+| Snyk SCA — frontend/sdk | 0 | 0 | 0 | Clean |
+| Snyk SCA — Jackson | 0 | 2→0 | 4→0 | Patched via BOM override |
+| Snyk Code | 0 | 1 (CSRF disable, intentional) | 1 | No library change |

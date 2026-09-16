@@ -165,3 +165,7 @@ deploy/.env
 
 # Local reference materials (screenshots, mockups)
 참고자료/
+
+# Air-gap import staging (binaries, not source)
+airgap/images/
+airgap/files/

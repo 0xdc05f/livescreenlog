@@ -497,7 +497,7 @@ class LiveScreenLogSDK {
     }
     this.logInfo('rrweb not found on page. Dynamically injecting script...');
     const script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/rrweb@2.1.1/dist/rrweb.min.js';
+    script.src = 'https://cdn.jsdelivr.net/npm/rrweb@2.1.4/dist/rrweb.min.js';
     script.async = true;
     script.onload = () => {
       this.logInfo('rrweb script injected and loaded successfully.');

@@ -7,7 +7,7 @@ Runtime pieces:
 
 | Component | Role |
 |-----------|------|
-| App JAR (JRE 21) | API + dashboard + static SDK |
+| App JAR (JRE 25) | API + dashboard + static SDK |
 | PostgreSQL 16+ | Sessions / events (Flyway on startup) |
 | Valkey or Redis | Live tail Pub/Sub + rate limits |
 
@@ -100,7 +100,7 @@ It is intentionally thin so you can:
 - build jar in CI, then `docker build -f deploy/Dockerfile`
 - or skip Docker for the app and run the jar under systemd
 
-Multi-stage “build inside Docker” images are fine for your org — treat this file as the runtime contract (JRE 21, port 8080, `prod` profile).
+Multi-stage “build inside Docker” images are fine for your org — treat this file as the runtime contract (JRE 25, port 8080, `prod` profile).
 
 ## 6. Health & smoke
 

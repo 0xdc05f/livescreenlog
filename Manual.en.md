@@ -5,11 +5,11 @@
 
 ### Downloads
 
-Prefer pre-built artifacts from GitHub Releases (available after the first beta `v*` tag, e.g. `v0.2.0`).
+Prefer pre-built artifacts from GitHub Releases (available after the first beta `v*` tag, e.g. `v0.3.0`).
 
 | Artifact | Latest | Notes |
 |----------|--------|-------|
-| **Server JAR** | [livescreenlog.jar](https://github.com/0xdc05f/livescreenlog/releases/latest/download/livescreenlog.jar) | JRE 21 + Postgres + Valkey/Redis |
+| **Server JAR** | [livescreenlog.jar](https://github.com/0xdc05f/livescreenlog/releases/latest/download/livescreenlog.jar) | JRE 25 + Postgres + Valkey/Redis |
 | **Browser JS** | [livescreenlog.js](https://github.com/0xdc05f/livescreenlog/releases/latest/download/livescreenlog.js) | UMD · `window.LiveScreenLog` |
 | **All releases** | [Releases page](https://github.com/0xdc05f/livescreenlog/releases) | Versioned JAR/JS + `SHA256SUMS.txt` |
 | **npm SDK** (optional) | [`livescreenlog`](https://www.npmjs.com/package/livescreenlog) | rrweb is bundled inside; or use `/livescreenlog.js` |
@@ -58,7 +58,7 @@ A Svelte dashboard and browser SDK (`livescreenlog` / `/livescreenlog.js`) are i
 
 | Component | Role |
 |-----------|------|
-| App (JRE 21 / Spring Boot) | API, dashboard, static SDK |
+| App (JRE 25 / Spring Boot) | API, dashboard, static SDK |
 | PostgreSQL 16+ | Session metadata & events (Flyway) |
 | Valkey or Redis | Pub/Sub live tail, rate limits |
 | Browser SDK | Capture + push (Mode B) client |
@@ -68,13 +68,13 @@ A Svelte dashboard and browser SDK (`livescreenlog` / `/livescreenlog.js`) are i
 ## 2. Requirements
 
 **Runtime on the host**
-- JRE 21+ (JDK 21 if you build)
+- JRE 25+ (JDK 25 if you build)
 - PostgreSQL 16+
 - Valkey or Redis
 - Optional: Docker, reverse proxy (TLS)
 
 **Build machine only**
-- Node.js 20+ (rebuild FE/SDK)
+- Node.js 22+ (rebuild FE/SDK)
 - Gradle Wrapper (`./gradlew`)
 
 ---
@@ -83,7 +83,7 @@ A Svelte dashboard and browser SDK (`livescreenlog` / `/livescreenlog.js`) are i
 
 ### 3.0 Pre-built JAR (operators)
 
-No source build. Needs JRE 21, Postgres, Valkey/Redis, and env vars.
+No source build. Needs JRE 25, Postgres, Valkey/Redis, and env vars.
 
 ```bash
 curl -fsSL -o livescreenlog.jar \
@@ -162,7 +162,7 @@ Files: `src/main/resources/application.yml`, `application-dev.yml`, `application
     Valkey/Redis (private)
 ```
 
-On the target host you only need **JRE 21 + jar + Postgres + Valkey/Redis**.  
+On the target host you only need **JRE 25 + jar + Postgres + Valkey/Redis**.  
 JDK, Node, and Gradle stay on the build/CI machine.
 
 ### 5.2 Bare metal
@@ -235,7 +235,7 @@ Dashboard → Settings → Projects: create a project and copy the **API Key**.
 
 ```html
 <script src="https://YOUR-LSL-HOST/livescreenlog.js"></script>
-<!-- or: https://github.com/0xdc05f/livescreenlog/releases/download/v0.2.0/livescreenlog-0.2.0.js -->
+<!-- or: https://github.com/0xdc05f/livescreenlog/releases/download/v0.3.0/livescreenlog-0.3.0.js -->
 <script>
   LiveScreenLog.init({
     apiKey: 'YOUR_PROJECT_API_KEY',
@@ -247,7 +247,7 @@ Dashboard → Settings → Projects: create a project and copy the **API Key**.
   });
 </script>
 ```
-Note: dynamic CDN fallback uses `rrweb@2.1.1`. Bundled SDK includes rrweb 2.1.1.
+Note: dynamic CDN fallback uses `rrweb@2.1.4`. Bundled SDK includes rrweb 2.1.4.
 
 ### 7.3 npm / ESM
 
