@@ -9,10 +9,10 @@
 
 services:
   postgres:
-    image: postgres:16
+    image: postgres:16-alpine
     container_name: livescreenlog-postgres
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     environment:
       POSTGRES_USER: ${DB_USER:-livescreenlog_user}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-livescreenlog_password}
@@ -30,7 +30,7 @@ services:
     image: valkey/valkey:alpine
     container_name: livescreenlog-valkey
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "valkey-cli", "ping"]
@@ -55,8 +55,9 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-livescreenlog_password}
       REDIS_HOST: valkey
       REDIS_PORT: 6379
-      LIVESCREENLOG_HMAC_SECRET: ${LIVESCREENLOG_HMAC_SECRET:-prod-hmac-secret-must-be-at-least-32-chars-long!!}
+      LIVESCREENLOG_HMAC_SECRET: ${LIVESCREENLOG_HMAC_SECRET}
       LIVESCREENLOG_DASHBOARD_ENABLED: ${LIVESCREENLOG_DASHBOARD_ENABLED:-false}
+      LIVESCREENLOG_DASHBOARD_PASSWORD: ${LIVESCREENLOG_DASHBOARD_PASSWORD:-}
       LIVESCREENLOG_ALLOWED_CAPTURE_ORIGINS: ${LIVESCREENLOG_ALLOWED_CAPTURE_ORIGINS:-http://localhost:8080,http://127.0.0.1:8080}
       LIVESCREENLOG_RETENTION_DAYS: ${LIVESCREENLOG_RETENTION_DAYS:-30}
     depends_on:

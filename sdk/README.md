@@ -24,7 +24,7 @@ Offline events are buffered (up to 2000) in localStorage with retry on network r
 ```html
 <script src="https://cdn.jsdelivr.net/npm/livescreenlog@0.3.0/dist/livescreenlog.js"></script>
 <script>
-  console.log(LiveScreenLog.version);
+  console.log(LiveScreenLog.version); // 0.3.1
   LiveScreenLog.init({ apiKey: '...', dsn: '...', id: 'user-001' });
 </script>
 ```

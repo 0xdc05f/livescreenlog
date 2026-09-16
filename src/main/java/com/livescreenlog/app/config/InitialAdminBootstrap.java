@@ -113,7 +113,10 @@ public class InitialAdminBootstrap implements ApplicationRunner {
                 log.warn("The provided additional admin password looks weak. Please change it immediately after first login.");
             }
             String hash = passwordEncoder.encode(rawPassword);
-            if (role == null || role.isBlank()) {
+            try {
+                role = UserRoles.requireAllowed(role);
+            } catch (IllegalArgumentException e) {
+                log.warn("Invalid role '{}' for --create-admin; using ADMIN", role);
                 role = "ADMIN";
             }
             User admin = User.builder()

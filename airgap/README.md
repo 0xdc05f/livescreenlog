@@ -1,4 +1,4 @@
-# 에어갭 반입 (LiveScreenLog 0.3.0)
+# 에어갭 반입 (LiveScreenLog 0.3.1)
 
 폐쇄망으로 이미지·산출물을 옮긴 뒤 기동하는 순서입니다. `images/`와 `files/`는 바이너리 스테이징이며 git에 넣지 않습니다.
 
@@ -8,7 +8,7 @@
 2. 앱 이미지를 로드합니다.
 
    ```bash
-   docker load < images/livescreenlog-0.3.0.tar.gz
+   docker load < images/livescreenlog-0.3.1.tar.gz
    ```
 
 3. `postgres:16-alpine`과 `valkey/valkey:alpine`은 이미 있다고 가정합니다. pull하지 않습니다.
@@ -31,9 +31,10 @@
 
 ## 이미지 tar가 없을 때
 
-`images/livescreenlog-0.3.0.tar.gz`가 없으면 2번 단계를 건너뛸 수 없습니다. 온라인 장비에서 아래를 실행한 뒤 USB로 다시 복사하세요.
+GHCR에 이미지가 없으면 온라인 장비에서 JAR로 로컬 빌드하세요.
 
 ```bash
-docker pull ghcr.io/0xdc05f/livescreenlog:0.3.0
-docker save ghcr.io/0xdc05f/livescreenlog:0.3.0 | gzip > images/livescreenlog-0.3.0.tar.gz
+./gradlew bootJar
+docker build -f deploy/Dockerfile -t ghcr.io/0xdc05f/livescreenlog:0.3.1 .
+docker save ghcr.io/0xdc05f/livescreenlog:0.3.1 | gzip > images/livescreenlog-0.3.1.tar.gz
 ```

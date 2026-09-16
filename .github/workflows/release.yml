@@ -1,9 +1,4 @@
-# Build distributable artifacts and publish a GitHub Release on version tags.
-# Tag format: v0.1.0 (must match version.json)
-#
-#   git tag -a v0.1.0 -m "v0.1.0"
-#   git push origin v0.1.0
-
+# Tag format: v0.3.0 (must match version.json)
 name: Release
 
 on:
@@ -16,68 +11,57 @@ permissions:
   packages: write
 
 jobs:
-  release:
-    name: Build & publish
+  build:
+    name: Build artifacts
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+      tag: ${{ steps.ver.outputs.tag }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
+      - uses: actions/checkout@v5
 
-      - name: Validate Flyway migrations (checksums & order)
-        # Runs locally or in full CI with DB. In this release job we just invoke info/validate if DB props are present.
-        # Recommended in PR CI: ./gradlew flywayValidate -Dflyway.url=... -Dflyway.user=... 
-        run: ./gradlew flywayInfo --no-daemon || echo "flywayInfo skipped (no DB configured for this job)"
-
-      - name: Set up Java 25
-        uses: actions/setup-java@v5
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "25"
           cache: gradle
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: "22"
           cache: npm
+          registry-url: https://registry.npmjs.org
           cache-dependency-path: |
             frontend/package-lock.json
             sdk/package-lock.json
 
-      - name: Read version
-        id: ver
+      - id: ver
         run: |
           VERSION=$(node -p "require('./version.json').version")
           TAG="${GITHUB_REF_NAME}"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
-          echo "Resolved version.json=${VERSION} tag=${TAG}"
           if [ "v${VERSION}" != "${TAG}" ]; then
             echo "::error::Tag ${TAG} must equal v${VERSION} from version.json"
             exit 1
           fi
 
-      - name: Sync package versions
-        run: ./release.sh --sync-only
+      - run: ./release.sh --sync-only
 
-      - name: Build server JAR (+ dashboard + SDK static)
-        run: ./gradlew bootJar -x test --no-daemon
+      - run: ./gradlew test bootJar --no-daemon
 
-      - name: Build browser SDK packages
+      - name: Build browser SDK
         working-directory: sdk
-        run: |
-          npm ci
-          npm run build
+        run: npm ci && npm run build
 
       - name: Stage release assets
         run: |
           set -euo pipefail
           VERSION="${{ steps.ver.outputs.version }}"
           mkdir -p dist/release
-          JAR=$(ls build/libs/livescreenlog-*.jar | head -1)
+          JAR="build/libs/livescreenlog-${VERSION}.jar"
           cp "$JAR" "dist/release/livescreenlog-${VERSION}.jar"
           cp sdk/dist/livescreenlog.js "dist/release/livescreenlog-${VERSION}.js"
-          # Stable names for /releases/latest/download/…
           cp "dist/release/livescreenlog-${VERSION}.jar" dist/release/livescreenlog.jar
           cp "dist/release/livescreenlog-${VERSION}.js" dist/release/livescreenlog.js
           (
@@ -85,72 +69,95 @@ jobs:
             sha256sum livescreenlog-${VERSION}.jar livescreenlog-${VERSION}.js \
               livescreenlog.jar livescreenlog.js > SHA256SUMS.txt
           )
-          ls -la dist/release
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+      - uses: actions/upload-artifact@v4
         with:
-          tag_name: ${{ steps.ver.outputs.tag }}
-          name: LiveScreenLog ${{ steps.ver.outputs.version }}
+          name: release-assets
+          path: dist/release/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: server-jar
+          path: build/libs/livescreenlog-${{ steps.ver.outputs.version }}.jar
+
+  github-release:
+    name: GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-assets
+          path: dist/release
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.build.outputs.tag }}
+          name: LiveScreenLog ${{ needs.build.outputs.version }}
           generate_release_notes: true
           body: |
             ## Downloads · 다운로드
 
             | Artifact | Description |
             |----------|-------------|
-            | `livescreenlog.jar` | Server (dashboard + embedded SDK) · 서버 JAR |
-            | `livescreenlog.js` | Browser UMD bundle · 브라우저 스크립트 |
-            | `livescreenlog-${{ steps.ver.outputs.version }}.jar` | Versioned JAR |
-            | `livescreenlog-${{ steps.ver.outputs.version }}.js` | Versioned JS |
+            | `livescreenlog.jar` | Server (dashboard + embedded SDK) |
+            | `livescreenlog.js` | Browser UMD bundle |
             | `SHA256SUMS.txt` | Checksums |
 
-            **Latest stable links** (always point at this channel’s newest release assets with stable names):
+            **Latest:** https://github.com/0xdc05f/livescreenlog/releases/latest/download/livescreenlog.jar
 
-            - JAR: https://github.com/0xdc05f/livescreenlog/releases/latest/download/livescreenlog.jar
-            - JS: https://github.com/0xdc05f/livescreenlog/releases/latest/download/livescreenlog.js
-
-            ## Run · 실행
-
-            ```bash
-            # requires JRE 25, PostgreSQL, Valkey/Redis — see Manual.md
-            java -jar livescreenlog.jar
-            ```
-
-            Docs: [Manual.md](https://github.com/0xdc05f/livescreenlog/blob/main/Manual.md) · [docs/deploy/DEPLOY.md](https://github.com/0xdc05f/livescreenlog/blob/main/docs/deploy/DEPLOY.md)
+            Requires JRE 25, PostgreSQL, Valkey/Redis — see Manual.md
           files: |
             dist/release/livescreenlog.jar
             dist/release/livescreenlog.js
-            dist/release/livescreenlog-${{ steps.ver.outputs.version }}.jar
-            dist/release/livescreenlog-${{ steps.ver.outputs.version }}.js
+            dist/release/livescreenlog-${{ needs.build.outputs.version }}.jar
+            dist/release/livescreenlog-${{ needs.build.outputs.version }}.js
             dist/release/SHA256SUMS.txt
 
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
+  ghcr:
+    name: GHCR
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          name: server-jar
+          path: build/libs
+      - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@v6
         with:
           context: .
           file: deploy/Dockerfile
           push: true
           tags: |
-            ghcr.io/0xdc05f/livescreenlog:${{ steps.ver.outputs.version }}
+            ghcr.io/0xdc05f/livescreenlog:${{ needs.build.outputs.version }}
             ghcr.io/0xdc05f/livescreenlog:latest
-            ghcr.io/0xdc05f/livescreenlog:server-${{ steps.ver.outputs.version }}
+            ghcr.io/0xdc05f/livescreenlog:server-${{ needs.build.outputs.version }}
 
-      - name: Publish npm package (sdk)
+  npm:
+    name: npm
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          registry-url: https://registry.npmjs.org
+          cache: npm
+          cache-dependency-path: sdk/package-lock.json
+      - name: Publish
         working-directory: sdk
-        continue-on-error: true
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           if [ -z "${NODE_AUTH_TOKEN}" ]; then
-            echo "NPM_TOKEN secret not set; skip npm publish"
-            exit 0
+            echo "::error::NPM_TOKEN secret is not set"
+            exit 1
           fi
-          echo "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" > ~/.npmrc
+          npm ci
           npm publish --access public

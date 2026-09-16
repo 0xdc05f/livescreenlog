@@ -6,101 +6,23 @@ Java 25 · Spring Boot 4.1.1 · PostgreSQL 16+ · Valkey/Redis · Svelte dashboa
 
 ---
 
-## 🚀 Real Production Setup (5 steps — this is the recommended way)
+## 🚀 Production setup
 
-**Postgres + Valkey + one Docker image = done.**
+**Compose is the supported path** (`localhost` inside an app container is not the host Postgres/Valkey).
 
-1. Pull and run PostgreSQL:
+1. Run the stack:
    ```bash
-   docker pull postgres:16-alpine
-   docker run -d --name postgres \
-     -e POSTGRES_USER=postgres \
-     -e POSTGRES_PASSWORD=your-strong-db-password \
-     -e POSTGRES_DB=livescreenlog \
-     -p 5432:5432 \
-     postgres:16-alpine
+   cp .env.example .env
+   # set LIVESCREENLOG_HMAC_SECRET (>=32 chars) and LIVESCREENLOG_ALLOWED_CAPTURE_ORIGINS
+   ./gradlew bootJar
+   docker compose -f deploy/docker-compose.yml --env-file .env up -d --build
    ```
 
-2. Pull and run Valkey:
-   ```bash
-   docker pull valkey/valkey:alpine
-   docker run -d --name valkey -p 6379:6379 valkey/valkey:alpine
-   ```
+   Or download the JAR: https://github.com/0xdc05f/livescreenlog/releases/latest/download/livescreenlog.jar
 
-3. Run LiveScreenLog (published image, no build needed):
-   ```bash
-   docker run -d \
-     -p 8080:8080 \
-     -e SPRING_PROFILES_ACTIVE=prod \
-     -e DB_HOST=localhost \
-     -e DB_PORT=5432 \
-     -e DB_NAME=livescreenlog \
-     -e DB_USER=postgres \
-     -e DB_PASSWORD=your-strong-db-password \
-     -e REDIS_HOST=localhost \
-     -e REDIS_PORT=6379 \
-     -e LIVESCREENLOG_HMAC_SECRET='a-very-strong-random-string-at-least-32-chars' \
-     -e LIVESCREENLOG_ALLOWED_CAPTURE_ORIGINS='https://your-site.com,https://admin.your-site.com' \
-      ghcr.io/0xdc05f/livescreenlog:0.3.0
-   ```
+2. Open the dashboard → **Settings → Project Management** → create a project and **copy the API Key**.
 
-   Or use Docker Compose (recommended for local/production testing):
-   ```yaml
-   # docker-compose.yml
-   services:
-     postgres:
-       image: postgres:16-alpine
-       environment:
-         POSTGRES_USER: postgres
-         POSTGRES_PASSWORD: your-strong-db-password
-         POSTGRES_DB: livescreenlog
-       ports:
-         - "5432:5432"
-       healthcheck:
-         test: ["CMD-SHELL", "pg_isready -U postgres"]
-         interval: 5s
-         timeout: 5s
-         retries: 5
-
-     valkey:
-       image: valkey/valkey:alpine
-       ports:
-         - "6379:6379"
-       healthcheck:
-         test: ["CMD", "valkey-cli", "ping"]
-         interval: 5s
-         timeout: 5s
-         retries: 5
-
-     app:
-        image: ghcr.io/0xdc05f/livescreenlog:0.3.0
-       depends_on:
-         postgres:
-           condition: service_healthy
-         valkey:
-           condition: service_healthy
-       ports:
-         - "8080:8080"
-       environment:
-         SPRING_PROFILES_ACTIVE: prod
-         DB_HOST: postgres
-         DB_PORT: 5432
-         DB_NAME: livescreenlog
-         DB_USER: postgres
-         DB_PASSWORD: your-strong-db-password
-         REDIS_HOST: valkey
-         REDIS_PORT: 6379
-         LIVESCREENLOG_HMAC_SECRET: 'a-very-strong-random-string-at-least-32-chars'
-         LIVESCREENLOG_ALLOWED_CAPTURE_ORIGINS: 'https://your-site.com,https://admin.your-site.com'
-   ```
-   Then run:
-   ```bash
-   docker compose up -d
-   ```
-
-4. Open the dashboard → **Settings → Project Management** → create a project and **copy the API Key**.
-
-5. Use it in your frontend:
+3. Use it in your frontend:
    ```js
    import { LiveScreenLog } from 'livescreenlog';
    LiveScreenLog.init({

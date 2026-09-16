@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { t } from '../i18n';
 
-  let { projects = $bindable([]), onClose } = $props();
+  let { projects = $bindable([]), onClose, canManage = false } = $props();
 
   let loading = $state(false);
   let error = $state('');
@@ -298,6 +298,7 @@
       {#if onClose}
         <button class="btn btn-ghost" onclick={onClose}>← {$t.settingsMenuReturn}</button>
       {/if}
+      {#if canManage}
       <button class="btn btn-primary" onclick={openCreateModal}>
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;margin-right:4px">
           <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -305,6 +306,7 @@
         </svg>
         {$t.projectRegister}
       </button>
+      {/if}
     </div>
   </div>
 
@@ -383,6 +385,7 @@
                           <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06-.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
                         </svg>
                       </button>
+                      {#if canManage}
                       <button class="btn-table-rotate" onclick={() => rotateProject(project.id)} title={$t.projectRotateKey}>
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-refresh">
                           <polyline points="23 4 23 10 17 10"></polyline>
@@ -395,6 +398,7 @@
                           <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
                         </svg>
                       </button>
+                      {/if}
                     </div>
                   </td>
                 </tr>
@@ -422,7 +426,9 @@
           {#if isEditing}
             <p class="modal-sub">
               API Key: <code style="font-family:monospace;font-size:0.7rem">{projectApiKey}</code>
+              {#if canManage}
               <button type="button" class="btn-rotate-key" onclick={rotateKey}>{$t.projectRotateKey}</button>
+              {/if}
             </p>
           {/if}
         </div>
@@ -536,6 +542,7 @@
                         <div class="terminal-dot"></div>
                         <span class="terminal-id">{userId}</span>
                       </div>
+                      {#if canManage}
                       <button
                         class="btn-trigger"
                         class:triggered={triggerResults[userId] === 'triggered'}
@@ -553,6 +560,7 @@
                           ● {$t.projectModeB_triggerBtn}
                         {/if}
                       </button>
+                      {/if}
                     </div>
                   {/each}
                 </div>
@@ -568,9 +576,11 @@
 
       <div class="modal-footer">
         <button class="btn btn-ghost" onclick={() => showModal = false}>{$t.projectCancel}</button>
+        {#if canManage}
         <button class="btn btn-primary" onclick={handleSave} disabled={saving}>
           {saving ? $t.projectSavingSettings : $t.projectSaveSettings}
         </button>
+        {/if}
       </div>
     </div>
   </div>

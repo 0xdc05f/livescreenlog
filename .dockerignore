@@ -1,0 +1,17 @@
+.git
+.kilo
+.playwright-mcp
+.ai
+.gradle
+frontend/node_modules
+sdk/node_modules
+**/node_modules
+frontend/dist
+sdk/dist
+sample.html
+sample-*.html
+current-dashboard.png
+airgap/images
+airgap/files
+src/test
+.github

@@ -1,5 +1,6 @@
 package com.livescreenlog.app.controller;
 
+import com.livescreenlog.app.config.UserRoles;
 import com.livescreenlog.app.domain.Project;
 import com.livescreenlog.app.domain.User;
 import com.livescreenlog.app.domain.UserProject;
@@ -51,7 +52,12 @@ public class AdminUserController {
         if (req.password().length() < 8) {
             return ResponseEntity.badRequest().body(Map.of("error", "password must be at least 8 characters"));
         }
-        String role = (req.role() == null || req.role().isBlank()) ? "ADMIN" : req.role();
+        String role;
+        try {
+            role = UserRoles.requireAllowed(req.role());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", "invalid role"));
+        }
         String hash = passwordEncoder.encode(req.password());
         User user = User.builder()
                 .username(req.username())

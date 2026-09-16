@@ -69,6 +69,10 @@ public class ServerConfigService {
         if (!SAFE_KEYS.contains(key)) {
             throw new IllegalArgumentException("Key not allowed to be set via UI: " + key);
         }
+        if ("allowed-capture-origins".equals(key) && value != null
+                && Arrays.stream(value.split(",")).map(String::trim).anyMatch("*"::equals)) {
+            throw new IllegalArgumentException("Wildcard capture origins are not allowed");
+        }
         ServerConfig cfg = repo.findById(key).orElseGet(() -> new ServerConfig(key, value));
         cfg.setValue(value);
         cfg.setUpdatedAt(ZonedDateTime.now());

@@ -9,19 +9,19 @@
 - **Rate limits** (Redis): create per IP+projectKey, append per sessionId (`livescreenlog.rate-limit.*`).
 
 ### 1.2 Read / Project / Push admin API
-- Dashboard uses custom login page (`/login`, `/login.html` via forward) with users from DB (SUPER_ADMIN / ADMIN roles).
-- Admin paths now protected: `/api/sessions/**`, `/api/projects/**`, `/`, `/index.html` require hasAnyRole("SUPER_ADMIN", "ADMIN").
-- POST /api/sessions is permitAll (projectKey validated in SessionIngestionService); GET /api/sessions/** remains ADMIN.
-- GET /api/stats/** requires ADMIN.
-- Ingest: HMAC for `/api/events`, `/api/heartbeat`, `/api/stop` (ROLE_SESSION).
-- `/api/push/**` (and GET /api/push/connect) remain permitAll for SDK/ops (projectKey validated in app).
+- Dashboard uses form login (`/login`) with DB users: SUPER_ADMIN, ADMIN, VIEWER.
+- GET `/api/sessions/**`, GET `/api/projects/**`, GET `/api/stats/**`, and `/` allow SUPER_ADMIN / ADMIN / VIEWER.
+- Project mutations and session stop/delete require SUPER_ADMIN / ADMIN plus project ACL.
+- POST /api/sessions is permitAll (projectKey validated in SessionIngestionService).
+- Ingest: HMAC for `/api/events`, `/api/heartbeat`, `/api/stop` (ROLE_SESSION). Stopped sessions cannot append.
+- `GET /api/push/connect` is public (valid projectKey). `active-terminals` / `trigger-record` require ADMIN and project ACL.
 - Still recommend network isolation or reverse proxy for production exposure of dashboard.
 - `requestCache` is disabled; authenticated GET /login forwards to dashboard. `login.html` does a fetch to `/api/me` to decide.
 - HMAC filter restores the previous SecurityContext (does not overwrite dashboard JSESSIONID).
 
 ### 1.3 Push connect (SDK)
 - `GET /api/push/connect` is public but requires a valid `projectKey`.
-- Mode B push admin paths work without custom login page so operators can trigger recording without dashboard credentials.
+- Mode B recording is started from the dashboard (`trigger-record`). The SDK `FORCE` trigger is accepted only after that authenticated call. Triggers are fanned out over Redis so multiple app instances can signal standby clients.
 
 ### 1.4 Production fail-fast
 `prod` profile refuses to start if:

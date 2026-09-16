@@ -20,7 +20,9 @@ public class ProductionSecurityValidator implements ApplicationRunner {
             "change-me",
             "changeme",
             "need-to-change",
-            "admin-password"
+            "admin-password",
+            "prod-hmac-secret",
+            "at-least-32"
     );
 
     private static final List<String> WEAK_PASSWORD_MARKERS = List.of(

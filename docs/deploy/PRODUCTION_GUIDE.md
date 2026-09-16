@@ -55,7 +55,7 @@ docker run -d \
   -e DB_NAME=livescreenlog \
   -e DB_USER=postgres \
   -e DB_PASSWORD=your-strong-password \
-  -e REDIS_HOST=localhost \
+  -e REDIS_HOST=valkey \
   -e REDIS_PORT=6379 \
   -e LIVESCREENLOG_HMAC_SECRET='여기에_32자_이상_진짜_랜덤_문자열_넣으세요' \
   -e LIVESCREENLOG_ALLOWED_CAPTURE_ORIGINS='https://your-site.com,https://admin.your-site.com' \

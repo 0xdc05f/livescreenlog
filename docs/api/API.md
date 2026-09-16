@@ -88,11 +88,12 @@ SDK standby SSE. Validates project key. Events: `INIT`, `START_RECORDING`.
 
 ### `GET /api/push/active-terminals?projectKey=`
 ### `POST /api/push/trigger-record?projectKey=&userId=`
-Open (no login). Mode B works without dashboard credentials.
+Requires SUPER_ADMIN or ADMIN plus access to the project. Issues a short-lived FORCE nonce for the SDK.
 
 ## Projects
 
-All under `/api/projects/**` — protected by hasAnyRole("SUPER_ADMIN", "ADMIN") (requires dashboard login).
+GET `/api/projects/**` — SUPER_ADMIN / ADMIN / VIEWER.
+Mutations — SUPER_ADMIN / ADMIN, scoped by project assignment.
 
 ## Ops
 
@@ -105,4 +106,4 @@ Liveness/readiness.
 | :--- | :--- |
 | `x-livescreenlog-session-token` | Ingest after session create (`/api/events`, `/api/heartbeat`, `/api/stop`) |
 
-Read, project, and push-admin routes are **not** protected by app-level Basic Auth. Isolate them at the network / reverse-proxy layer in production. See `docs/security/SECURITY.md`.
+Dashboard routes use form-login cookies (CSRF on mutating calls). Isolate the dashboard at the reverse proxy in production. See `docs/security/SECURITY.md`.

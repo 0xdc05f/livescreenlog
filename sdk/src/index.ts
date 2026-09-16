@@ -3,7 +3,7 @@ import * as rrweb from 'rrweb';
 
 // Injected at build time; fallback for source
 declare const __SDK_VERSION__: string | undefined;
-const SDK_VERSION = typeof __SDK_VERSION__ !== 'undefined' ? __SDK_VERSION__ : '1.1.0';
+const SDK_VERSION = typeof __SDK_VERSION__ !== 'undefined' ? __SDK_VERSION__ : '0.3.1';
 const SDK_NAME = 'livescreenlog-browser';
 
 // Offline buffering constants (reuse no new deps)
@@ -42,6 +42,10 @@ class LiveScreenLogSDK {
   private retryTimer: any = null;
   private retryDelay = 1000;
   private onlineListenerAdded = false;
+
+  get version() {
+    return SDK_VERSION;
+  }
 
   public init(options: LiveScreenLogOptions) {
     const key = options.apiKey || options.projectKey;
@@ -227,17 +231,10 @@ class LiveScreenLogSDK {
       this.stopRecord = window.rrweb.record({
         emit: (event: any) => {
           this.events.push(event);
-          this.trimQueue(); // Offline trim on active rrweb emit
+          this.trimQueue();
           if (this.events.length >= 8) this.flush();
         },
-        maskAllInputs: true,
-        blockClass: 'livescreenlog-block',
-        ignoreClass: 'livescreenlog-ignore',
-        maskInputOptions: {
-          password: true,
-          email: true,
-          tel: true,
-        },
+        ...this.rrwebMaskOptions(),
       });
 
       // Force the very first full snapshot to be emitted and sent immediately
@@ -352,8 +349,9 @@ class LiveScreenLogSDK {
           if (this.events.length > 300) {
             this.events.shift();
           }
-          this.trimQueue(); // Offline trim on pre-trigger rrweb emit
-        }
+          this.trimQueue();
+        },
+        ...this.rrwebMaskOptions(),
       });
     }
   }
@@ -490,24 +488,26 @@ class LiveScreenLogSDK {
   }
 
   // --- Dynamic Script Loader ---
+  private rrwebMaskOptions() {
+    return {
+      maskAllInputs: true,
+      blockClass: 'livescreenlog-block',
+      ignoreClass: 'livescreenlog-ignore',
+      maskInputOptions: {
+        password: true,
+        email: true,
+        tel: true,
+      },
+    };
+  }
+
   private ensureRrweb(callback: () => void) {
     if (window.rrweb) {
       callback();
       return;
     }
-    this.logInfo('rrweb not found on page. Dynamically injecting script...');
-    const script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/rrweb@2.1.4/dist/rrweb.min.js';
-    script.async = true;
-    script.onload = () => {
-      this.logInfo('rrweb script injected and loaded successfully.');
-      callback();
-    };
-    script.onerror = () => {
-      this.logError('Failed to load rrweb script from CDN. Replay features might not work.');
-      callback(); // Proceed anyway, logs mode might still work
-    };
-    document.head.appendChild(script);
+    this.logError('rrweb is not available. Use the bundled SDK (npm or /livescreenlog.js).');
+    callback();
   }
 
   // --- Logs & Intercept modules ---

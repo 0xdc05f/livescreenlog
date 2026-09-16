@@ -1,6 +1,8 @@
 package com.livescreenlog.app.security;
 
 import com.livescreenlog.app.config.LiveScreenLogProperties;
+import com.livescreenlog.app.domain.SessionMetadata;
+import com.livescreenlog.app.repository.SessionMetadataRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -31,6 +33,7 @@ public class HmacAuthenticationFilter extends OncePerRequestFilter {
 
     private static final String HEADER_NAME = "x-livescreenlog-session-token";
     private final LiveScreenLogProperties properties;
+    private final SessionMetadataRepository sessionMetadataRepository;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
@@ -68,6 +71,17 @@ public class HmacAuthenticationFilter extends OncePerRequestFilter {
             String expectedSignature = calculateSignature(sessionId, expirationMillis);
             if (!MessageDigest.isEqual(expectedSignature.getBytes(StandardCharsets.UTF_8), signature.getBytes(StandardCharsets.UTF_8))) {
                 log.warn("Invalid signature for session: {}", sessionId);
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                return;
+            }
+
+            SessionMetadata metadata = sessionMetadataRepository.findById(sessionId).orElse(null);
+            if (metadata == null) {
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                return;
+            }
+            boolean active = "ACTIVE".equals(metadata.getStatus());
+            if (!active && !path.equals("/api/stop")) {
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                 return;
             }

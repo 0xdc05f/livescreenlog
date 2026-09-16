@@ -62,7 +62,8 @@
   let toastMsg = $state('');
   let toastTimer: ReturnType<typeof setTimeout> | null = null;
   let copiedId = $state(false);
-   let currentUser = $state<any>(null);
+    let currentUser = $state<any>(null);
+   let canManage = $derived(currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'ADMIN');
    let recommendedSessions = $state<any[]>([]);
    let recLoading = $state(false);
 
@@ -371,6 +372,7 @@
                 <span class="subnav-hint">{$t.settingsGuideHint}</span>
               </span>
             </button>
+            {#if canManage}
             <button
               type="button"
               class="settings-subnav-item"
@@ -385,15 +387,17 @@
               </svg>
               <span class="subnav-text">
                 <span class="subnav-label">{$t.settingsMenuServer}</span>
-                <span class="subnav-hint">{$t.settingsServerHint}</span>
-              </span>
-            </button>
-            <button
-              type="button"
-              class="settings-subnav-item"
-              class:active={settingsTab === 'users'}
-              onclick={() => navigate('settings', 'users')}
-            >
+                 <span class="subnav-hint">{$t.settingsServerHint}</span>
+               </span>
+             </button>
+            {/if}
+            {#if currentUser?.role === 'SUPER_ADMIN'}
+             <button
+               type="button"
+               class="settings-subnav-item"
+               class:active={settingsTab === 'users'}
+               onclick={() => navigate('settings', 'users')}
+             >
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="subnav-icon">
                 <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
                 <circle cx="9" cy="7" r="4"></circle>
@@ -405,7 +409,8 @@
                  <span class="subnav-hint">{$t.settingsUsersHint}</span>
                </span>
              </button>
-             <button
+            {/if}
+              <button
                type="button"
                class="settings-subnav-item"
                 class:active={settingsTab === 'account'}
@@ -437,7 +442,7 @@
     <main class="center-panel">
       {#if activeNav === 'settings'}
          {#if settingsTab === 'projects'}
-            <ProjectsView bind:projects={projects} onClose={() => navigate('replay')} />
+            <ProjectsView bind:projects={projects} canManage={canManage} onClose={() => navigate('replay')} />
          {:else if settingsTab === 'stats'}
             <StatsView projects={projects} />
          {:else if settingsTab === 'server'}

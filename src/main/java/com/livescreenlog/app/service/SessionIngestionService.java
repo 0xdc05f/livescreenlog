@@ -45,6 +45,8 @@ public class SessionIngestionService {
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
     private final RateLimitService rateLimitService;
+    private final ServerConfigService serverConfigService;
+    private final ForceTriggerService forceTriggerService;
 
     @Transactional
     public SessionCreateResponse createSession(SessionCreateRequest request, String clientKey) {
@@ -58,8 +60,8 @@ public class SessionIngestionService {
         }
 
         com.livescreenlog.app.domain.Project project = projectRepository.findByApiKey(effectiveKey).orElse(null);
-        boolean isGlobalKey = properties.getProjectKey() != null
-                && properties.getProjectKey().equals(effectiveKey);
+        String globalKey = serverConfigService.getEffectiveProjectKey();
+        boolean isGlobalKey = globalKey != null && globalKey.equals(effectiveKey);
         if (project == null && !isGlobalKey) {
             throw new IllegalArgumentException("Invalid project key");
         }
@@ -69,8 +71,10 @@ public class SessionIngestionService {
 
         boolean enabled = false;
 
-        if ("ERROR".equals(request.trigger()) || "FORCE".equals(request.trigger())) {
-            enabled = true;
+        if ("FORCE".equals(request.trigger())) {
+            enabled = forceTriggerService.consume(effectiveKey, request.userId());
+        } else if ("ERROR".equals(request.trigger())) {
+            enabled = !"NONE".equals(mode);
         } else if ("ALL".equals(mode)) {
             enabled = true;
         } else if ("NONE".equals(mode)) {
@@ -130,6 +134,7 @@ public class SessionIngestionService {
 
     @Transactional
     public void appendEvents(String sessionId, String eventsJson) {
+        requireActiveSession(sessionId);
         if (eventsJson == null) {
             throw new IllegalArgumentException("Events payload is required");
         }
@@ -200,6 +205,7 @@ public class SessionIngestionService {
 
     @Transactional
     public void heartbeat(String sessionId) {
+        requireActiveSession(sessionId);
         touchHeartbeatThrottled(sessionId);
     }
 
@@ -230,6 +236,14 @@ public class SessionIngestionService {
             ));
             redisTemplate.convertAndSend("session:created", payload);
         } catch (Exception ignored) {}
+    }
+
+    private void requireActiveSession(String sessionId) {
+        SessionMetadata metadata = metadataRepository.findById(sessionId)
+                .orElseThrow(() -> new IllegalArgumentException("Unknown session"));
+        if (!"ACTIVE".equals(metadata.getStatus())) {
+            throw new IllegalArgumentException("Session is not active");
+        }
     }
 
     @Transactional

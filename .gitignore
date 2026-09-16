@@ -169,3 +169,6 @@ deploy/.env
 # Air-gap import staging (binaries, not source)
 airgap/images/
 airgap/files/
+
+.playwright-mcp/
+current-dashboard.png

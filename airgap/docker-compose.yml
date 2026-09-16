@@ -1,5 +1,5 @@
 # Air-gap import stack. Load the app image first:
-#   docker load < images/livescreenlog-0.3.0.tar.gz
+#   docker load < images/livescreenlog-0.3.1.tar.gz
 # Then:
 #   cp .env.example .env
 #   docker compose -f docker-compose.yml --env-file .env up -d
@@ -36,7 +36,7 @@ services:
       retries: 10
 
   app:
-    image: ghcr.io/0xdc05f/livescreenlog:0.3.0
+    image: ghcr.io/0xdc05f/livescreenlog:0.3.1
     container_name: livescreenlog-app
     ports:
       - "127.0.0.1:8080:8080"

@@ -9,5 +9,5 @@ script-tag / JAR 사용 시 이 폴더는 불필요합니다. 번들러(`npm i l
 또는 Verdaccio/Nexus에 일괄 업로드 후:
 
 ```bash
-npm install livescreenlog@0.3.0 --registry https://nexus.internal/repository/npm-hosted/
+npm install livescreenlog@0.3.1 --registry https://nexus.internal/repository/npm-hosted/
 ```

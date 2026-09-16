@@ -5,6 +5,9 @@ import com.livescreenlog.app.dto.SessionEventsPage;
 import com.livescreenlog.app.dto.SessionResponse;
 import com.livescreenlog.app.service.SessionIngestionService;
 import com.livescreenlog.app.service.SessionReadService;
+import com.livescreenlog.app.service.UserProjectAccessService;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -31,6 +34,8 @@ public class SessionReadController {
     private final SessionReadService readService;
     private final RedisMessageListenerContainer redisMessageListenerContainer;
     private final SessionIngestionService ingestionService;
+    private final UserProjectAccessService userProjectAccessService;
+    private final ObjectMapper objectMapper;
 
     @GetMapping
     public ResponseEntity<Page<SessionResponse>> searchSessions(
@@ -66,6 +71,12 @@ public class SessionReadController {
         MessageListener listener = (message, pattern) -> {
             try {
                 String payload = new String(message.getBody(), StandardCharsets.UTF_8);
+                JsonNode node = objectMapper.readTree(payload);
+                String projectKey = node.path("projectKey").asText(null);
+                if (projectKey != null && !projectKey.isBlank()
+                        && !userProjectAccessService.hasAccessToProject(projectKey)) {
+                    return;
+                }
                 emitter.send(SseEmitter.event().name("session_created").data(payload));
             } catch (Exception e) {
                 emitter.complete();
@@ -120,12 +131,18 @@ public class SessionReadController {
     // security: admin protected via SecurityConfig (hasAnyRole ADMIN/SUPER_ADMIN on /api/sessions/**)
     @PostMapping("/{id}/stop")
     public ResponseEntity<Void> forceStopSession(@PathVariable String id) {
+        if (!userProjectAccessService.canManageSession(id)) {
+            return ResponseEntity.notFound().build();
+        }
         ingestionService.stopSession(id);
         return ResponseEntity.ok().build();
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteSession(@PathVariable String id) {
+        if (!userProjectAccessService.canManageSession(id)) {
+            return ResponseEntity.notFound().build();
+        }
         ingestionService.deleteSession(id);
         return ResponseEntity.ok().build();
     }

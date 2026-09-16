@@ -22,6 +22,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.zip.GZIPOutputStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -52,7 +53,7 @@ class IngestionIntegrationTest {
         registry.add("spring.data.redis.port", () -> redis.getMappedPort(6379));
         registry.add("livescreenlog.security.hmac-secret", () -> "test-hmac-secret-key-at-least-32-characters");
         registry.add("livescreenlog.security.project-key", () -> "test-project-key");
-        registry.add("livescreenlog.security.dashboard-enabled", () -> "false");
+        registry.add("livescreenlog.security.dashboard-enabled", () -> "true");
         registry.add("livescreenlog.rate-limit.session-create-per-minute", () -> "1000");
         registry.add("livescreenlog.rate-limit.event-append-per-minute", () -> "1000");
     }
@@ -172,6 +173,18 @@ class IngestionIntegrationTest {
     }
 
     @Test
+    void viewerCannotCreateProject() throws Exception {
+        mockMvc.perform(post("/api/projects")
+                        .with(user("viewer").roles("VIEWER"))
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"nope"}
+                                """))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void invalidProjectKeyRejected() throws Exception {
         mockMvc.perform(post("/api/sessions")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -185,10 +198,55 @@ class IngestionIntegrationTest {
     }
 
     @Test
-    void pushAdminEndpointsOpenWithoutAuth() throws Exception {
+    void pushAdminEndpointsRequireAuth() throws Exception {
         mockMvc.perform(post("/api/push/trigger-record")
                         .param("projectKey", "test-project-key")
-                        .param("userId", "u1"))
-                .andExpect(status().isNotFound());
+                        .param("userId", "u1")
+                        .with(csrf()))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void forceTriggerWithoutServerNonceDoesNotStart() throws Exception {
+        mockMvc.perform(post("/api/sessions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "projectKey": "test-project-key",
+                                  "userId": "user-force",
+                                  "trigger": "FORCE"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.enabled").value(false));
+    }
+
+    @Test
+    void appendEventsRejectedAfterStop() throws Exception {
+        MvcResult createResult = mockMvc.perform(post("/api/sessions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "projectKey": "test-project-key",
+                                  "userId": "user-stop",
+                                  "source": "/stop"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode body = objectMapper.readTree(createResult.getResponse().getContentAsString());
+        String token = body.get("token").asText();
+
+        mockMvc.perform(post("/api/stop")
+                        .header("x-livescreenlog-session-token", token))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/events")
+                        .header("x-livescreenlog-session-token", token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                [{"type": 3, "timestamp": 1, "data": {}}]
+                                """))
+                .andExpect(status().isUnauthorized());
     }
 }

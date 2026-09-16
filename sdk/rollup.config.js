@@ -24,11 +24,13 @@ export default [
         file: packageJson.main,
         format: 'cjs',
         sourcemap: true,
+        banner: `/*! LiveScreenLog browser SDK v${packageJson.version} */`,
       },
       {
         file: packageJson.module,
         format: 'esm',
         sourcemap: true,
+        banner: `/*! LiveScreenLog browser SDK v${packageJson.version} */`,
       },
       {
         file: packageJson.browser,
@@ -36,6 +38,7 @@ export default [
         name: 'LiveScreenLogUMD',
         sourcemap: true,
         exports: 'named',
+        banner: `/*! LiveScreenLog browser SDK v${packageJson.version} */`,
         footer: 'if (typeof window !== "undefined" && window.LiveScreenLogUMD && window.LiveScreenLogUMD.LiveScreenLog) { window.LiveScreenLog = window.LiveScreenLogUMD.LiveScreenLog; }',
       },
     ],

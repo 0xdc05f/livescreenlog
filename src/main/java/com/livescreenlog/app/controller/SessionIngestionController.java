@@ -62,12 +62,7 @@ public class SessionIngestionController {
     }
 
     private static String clientKey(HttpServletRequest request, String projectKey) {
-        String ip = request.getHeader("X-Forwarded-For");
-        if (ip != null && !ip.isBlank()) {
-            ip = ip.split(",")[0].trim();
-        } else {
-            ip = request.getRemoteAddr();
-        }
+        String ip = request.getRemoteAddr();
         return (projectKey != null ? projectKey : "unknown") + ":" + (ip != null ? ip : "unknown");
     }
 }

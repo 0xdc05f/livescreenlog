@@ -71,7 +71,7 @@ Pushing the tag runs [`.github/workflows/release.yml`](../../.github/workflows/r
 | Latest JS | https://github.com/0xdc05f/livescreenlog/releases/latest/download/livescreenlog.js |
 | Specific version | `…/releases/download/v0.1.0/livescreenlog-0.1.0.jar` |
 
-Until the first tag is pushed, “latest” links 404 — cut `v0.1.0` (or next beta) when ready.
+Latest links point at the newest GitHub Release (`v0.3.0` at time of writing).
 
 ## npm (optional) · npm (선택)
 
@@ -85,7 +85,7 @@ Prefer publishing the same version as the git tag. Not required for self-host: o
 
 ## Docker image (optional) · Docker (선택)
 
-Tag `v0.3.0` triggers GHCR push (`ghcr.io/0xdc05f/livescreenlog:0.3.0`, `:latest`, `:server-0.3.0`). npm publish needs repo secret `NPM_TOKEN`.
+Tag `vX.Y.Z` runs independent jobs: GitHub Release, GHCR, npm. GHCR needs the container package linked to this repo with Actions write. npm needs repo secret `NPM_TOKEN`.
 
 ```bash
 ./gradlew bootJar

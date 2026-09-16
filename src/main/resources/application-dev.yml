@@ -1,4 +1,6 @@
 spring:
+  flyway:
+    locations: classpath:db/migration,classpath:db/dev
   datasource:
     url: jdbc:postgresql://localhost:5432/livescreenlog?reWriteBatchedInserts=true
     username: livescreenlog_user
@@ -23,4 +25,4 @@ spring:
 
 livescreenlog:
   security:
-    dashboard-enabled: ${LIVESCREENLOG_DASHBOARD_ENABLED:false}
+    dashboard-enabled: ${LIVESCREENLOG_DASHBOARD_ENABLED:true}
