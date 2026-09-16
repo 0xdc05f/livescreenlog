@@ -70,12 +70,12 @@ jobs:
               livescreenlog.jar livescreenlog.js > SHA256SUMS.txt
           )
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: release-assets
           path: dist/release/
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: server-jar
           path: build/libs/livescreenlog-${{ steps.ver.outputs.version }}.jar
