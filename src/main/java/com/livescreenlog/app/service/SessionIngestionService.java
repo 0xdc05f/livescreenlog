@@ -1,8 +1,8 @@
 package com.livescreenlog.app.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.livescreenlog.app.config.LiveScreenLogProperties;
 import com.livescreenlog.app.domain.SessionEvent;
 import com.livescreenlog.app.domain.SessionMetadata;
@@ -169,7 +169,7 @@ public class SessionIngestionService {
                 try {
                     String eventData = objectMapper.writeValueAsString(eventNode);
                     events.add(new SessionEvent(sessionId, timestamp, eventData));
-                } catch (JsonProcessingException e) {
+                } catch (JacksonException e) {
                     log.error("Failed to serialize event node", e);
                 }
             }
@@ -197,7 +197,7 @@ public class SessionIngestionService {
                     redisTemplate.convertAndSend(channel, payload);
                 }
             }
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             log.error("Failed to parse events JSON", e);
             throw new IllegalArgumentException("Invalid JSON format");
         }

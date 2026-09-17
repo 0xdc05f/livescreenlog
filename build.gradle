@@ -2,7 +2,7 @@ plugins {
 	id 'java'
 	id 'org.springframework.boot' version '4.1.1'
 	id 'io.spring.dependency-management' version '1.1.7'
-	id 'org.flywaydb.flyway' version '12.4.0'   // for flywayValidate / info in CI
+	id 'org.flywaydb.flyway' version '13.6.0'
 }
 
 group = 'com.livescreenlog'
@@ -16,7 +16,6 @@ java {
 }
 
 ext {
-	set('jackson-2-bom.version', '2.21.6')
 	set('jackson-bom.version', '3.1.6')
 }
 
@@ -37,8 +36,6 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-security'
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
-	implementation 'com.fasterxml.jackson.core:jackson-databind'
-	implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
 	implementation 'org.springframework.boot:spring-boot-starter-flyway'
 	implementation 'org.flywaydb:flyway-database-postgresql'
 	compileOnly 'org.projectlombok:lombok'

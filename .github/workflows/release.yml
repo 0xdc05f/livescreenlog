@@ -163,4 +163,10 @@ jobs:
             exit 1
           fi
           npm ci
+          CURRENT=$(node -p "require('./package.json').version")
+          PUBLISHED=$(npm view livescreenlog version 2>/dev/null || true)
+          if [ "$CURRENT" = "$PUBLISHED" ]; then
+            echo "livescreenlog@${CURRENT} already published; skipping"
+            exit 0
+          fi
           npm publish --access public

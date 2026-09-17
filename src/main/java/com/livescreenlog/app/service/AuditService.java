@@ -1,6 +1,6 @@
 package com.livescreenlog.app.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.livescreenlog.app.domain.AuditLog;
 import com.livescreenlog.app.repository.AuditLogRepository;
 import lombok.RequiredArgsConstructor;
