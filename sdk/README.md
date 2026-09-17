@@ -9,7 +9,7 @@ npm i livescreenlog
 ```ts
 import { LiveScreenLog, SDK_VERSION } from 'livescreenlog';
 
-console.log(SDK_VERSION); // e.g. 0.3.0
+console.log(SDK_VERSION); // e.g. 0.3.1
 
 LiveScreenLog.init({
   apiKey: 'YOUR_PROJECT_KEY',
@@ -22,7 +22,7 @@ Offline events are buffered (up to 2000) in localStorage with retry on network r
 ## Script tag (no bundler)
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/livescreenlog@0.3.0/dist/livescreenlog.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/livescreenlog@0.3.1/dist/livescreenlog.js"></script>
 <script>
   console.log(LiveScreenLog.version); // 0.3.1
   LiveScreenLog.init({ apiKey: '...', dsn: '...', id: 'user-001' });

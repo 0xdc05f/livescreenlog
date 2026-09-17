@@ -1,4 +1,4 @@
-# Tag format: v0.3.0 (must match version.json)
+# Tag format: v0.3.1 (must match version.json)
 name: Release
 
 on:
@@ -85,7 +85,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: release-assets
           path: dist/release
@@ -117,9 +117,12 @@ jobs:
     name: GHCR
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: server-jar
           path: build/libs

@@ -71,7 +71,7 @@ Pushing the tag runs [`.github/workflows/release.yml`](../../.github/workflows/r
 | Latest JS | https://github.com/0xdc05f/livescreenlog/releases/latest/download/livescreenlog.js |
 | Specific version | `…/releases/download/v0.1.0/livescreenlog-0.1.0.jar` |
 
-Latest links point at the newest GitHub Release (`v0.3.0` at time of writing).
+Latest links point at the newest GitHub Release (`v0.3.1` at time of writing).
 
 ## npm (optional) · npm (선택)
 
@@ -85,11 +85,13 @@ Prefer publishing the same version as the git tag. Not required for self-host: o
 
 ## Docker image (optional) · Docker (선택)
 
-Tag `vX.Y.Z` runs independent jobs: GitHub Release, GHCR, npm. GHCR needs the container package linked to this repo with Actions write. npm needs repo secret `NPM_TOKEN`.
+Tag `vX.Y.Z` runs independent jobs: GitHub Release, GHCR, npm. npm needs repo secret `NPM_TOKEN`.
+
+GHCR `write_package` 거부 시: GitHub → Packages → `livescreenlog` container → Package settings → Manage Actions access → 이 리포에 Write. `gh` 토큰에는 `write:packages` 스코프가 필요합니다.
 
 ```bash
 ./gradlew bootJar
-docker build -f deploy/Dockerfile -t ghcr.io/0xdc05f/livescreenlog:0.3.0 .
+docker build -f deploy/Dockerfile -t ghcr.io/0xdc05f/livescreenlog:0.3.1 .
 ```
 
 ## Layout reminder · 구조

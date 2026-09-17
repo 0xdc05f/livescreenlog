@@ -5,7 +5,7 @@
 
 ### 다운로드
 
-빌드 없이 쓰려면 GitHub Releases에서 받으세요. 베타 태그(`v0.3.0` 등) 이후 링크가 활성화됩니다.
+빌드 없이 쓰려면 GitHub Releases에서 받으세요. 베타 태그(`v0.3.1` 등) 이후 링크가 활성화됩니다.
 
 | 산출물 | 최신 | 설명 |
 |--------|------|------|
@@ -235,7 +235,7 @@ URL 예: `/?view=settings&tab=stats`. 브라우저 뒤로가기는 설정↔리�
 
 ```html
 <script src="https://YOUR-LSL-HOST/livescreenlog.js"></script>
-<!-- 또는: https://github.com/0xdc05f/livescreenlog/releases/download/v0.3.0/livescreenlog-0.3.0.js -->
+<!-- 또는: https://github.com/0xdc05f/livescreenlog/releases/download/v0.3.1/livescreenlog-0.3.1.js -->
 <script>
   LiveScreenLog.init({
     apiKey: 'YOUR_PROJECT_API_KEY',

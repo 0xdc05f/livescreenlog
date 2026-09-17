@@ -76,7 +76,7 @@ LiveScreenLog.setTags({ dept: user.dept });
 
 CDN (no build tool):
 ```html
-<script src="https://cdn.jsdelivr.net/npm/livescreenlog@0.3.0/dist/livescreenlog.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/livescreenlog@0.3.1/dist/livescreenlog.js"></script>
 <script>
   LiveScreenLog.init({ dsn: '...', apiKey: '...', id: 'user-001' });
 </script>

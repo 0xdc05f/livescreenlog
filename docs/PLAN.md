@@ -13,3 +13,4 @@
 3. VIEWER는 조회만. 프로젝트 배정 `roleInProject`(OWNER/ADMIN)가 뮤테이션을 제한합니다.
 4. Mode B push는 Redis pub/sub fanout + presence set (멀티 노드).
 5. 데모 시드 키는 `dev` 프로필만. `V11`이 기존 데모 키를 제거합니다.
+6. Spring Boot 4 HTTP는 Jackson 3. 도메인 JSON은 Jackson 2 `ObjectMapper` 빈을 유지합니다.
