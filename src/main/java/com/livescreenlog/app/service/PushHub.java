@@ -187,6 +187,7 @@ public class PushHub {
             if (n != null && n == 1L) {
                 redisTemplate.opsForSet().add(usersKey(projectKey), userId);
             }
+            redisTemplate.expire(usersKey(projectKey), Duration.ofHours(6));
         } catch (Exception e) {
             log.warn("Redis presence add failed: {}", e.getMessage());
         }

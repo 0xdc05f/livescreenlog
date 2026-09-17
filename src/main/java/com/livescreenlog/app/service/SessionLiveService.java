@@ -4,6 +4,7 @@ import com.livescreenlog.app.config.LiveScreenLogProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.connection.MessageListener;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.listener.ChannelTopic;
 import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 import org.springframework.http.HttpStatus;
@@ -13,12 +14,14 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @Slf4j
@@ -28,6 +31,7 @@ public class SessionLiveService {
 
     private final RedisMessageListenerContainer redisMessageListenerContainer;
     private final LiveScreenLogProperties properties;
+    private final StringRedisTemplate redisTemplate;
 
     private static final long DEFAULT_TIMEOUT = 30 * 60 * 1000L;
     private static final long PING_INTERVAL_SECONDS = 15L;
@@ -49,6 +53,14 @@ public class SessionLiveService {
             count.decrementAndGet();
             throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
                     "Live SSE subscriber limit exceeded for session");
+        }
+
+        try {
+            String key = subsKey(sessionId);
+            redisTemplate.opsForValue().increment(key);
+            redisTemplate.expire(key, Duration.ofHours(2));
+        } catch (Exception e) {
+            log.warn("Failed to increment live subscriber count in Redis for session {}: {}", sessionId, e.getMessage());
         }
 
         SseEmitter emitter = new SseEmitter(DEFAULT_TIMEOUT);
@@ -74,13 +86,26 @@ public class SessionLiveService {
             }
         }, PING_INTERVAL_SECONDS, PING_INTERVAL_SECONDS, TimeUnit.SECONDS);
 
+        AtomicBoolean cleaned = new AtomicBoolean();
         Runnable cleanup = () -> {
+            if (!cleaned.compareAndSet(false, true)) {
+                return;
+            }
             log.info("Cleaning up SSE subscription for session {}", sessionId);
             pingFuture.cancel(false);
             redisMessageListenerContainer.removeMessageListener(listener, topic);
             AtomicInteger c = subscriberCounts.get(sessionId);
             if (c != null && c.decrementAndGet() <= 0) {
                 subscriberCounts.remove(sessionId);
+            }
+            try {
+                String key = subsKey(sessionId);
+                Long n = redisTemplate.opsForValue().decrement(key);
+                if (n == null || n <= 0) {
+                    redisTemplate.delete(key);
+                }
+            } catch (Exception e) {
+                log.warn("Failed to decrement live subscriber count in Redis for session {}: {}", sessionId, e.getMessage());
             }
         };
 
@@ -100,5 +125,22 @@ public class SessionLiveService {
     public int subscriberCount(String sessionId) {
         AtomicInteger count = subscriberCounts.get(sessionId);
         return count == null ? 0 : count.get();
+    }
+
+    public boolean hasSubscribers(String sessionId) {
+        try {
+            String raw = redisTemplate.opsForValue().get(subsKey(sessionId));
+            if (raw != null) {
+                return Long.parseLong(raw) > 0;
+            }
+        } catch (Exception e) {
+            log.warn("Failed to read live subscriber count from Redis for session {}: {}", sessionId, e.getMessage());
+        }
+        AtomicInteger count = subscriberCounts.get(sessionId);
+        return count != null && count.get() > 0;
+    }
+
+    private static String subsKey(String sessionId) {
+        return "live:subs:" + sessionId;
     }
 }

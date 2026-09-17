@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LiveScreenLog • 로그인</title>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     * { box-sizing: border-box; }
     html, body { height: 100%; }
@@ -137,7 +136,7 @@
 <body>
   <div class="header">
     <strong>LiveScreenLog</strong>
-    <span class="badge">ADMIN</span>
+    <span class="badge" id="badge">Dashboard</span>
   </div>
   <div class="login-wrap">
     <div class="card">
@@ -160,6 +159,33 @@
   </div>
   <script>
     (function () {
+      var en = (function () {
+        try { return (localStorage.getItem('sl_locale') || navigator.language || '').indexOf('en') === 0; } catch (e) { return false; }
+      })();
+      var copy = en ? {
+        badge: 'Dashboard', title: 'Sign in', sub: 'Access the dashboard',
+        user: 'Username', pass: 'Password', btn: 'Sign in',
+        foot: 'The first account is created when the server starts.',
+        bad: 'Incorrect username or password.',
+        csrf: 'Session expired. Refresh the page and try again.',
+        out: 'You have been signed out.'
+      } : {
+        badge: '대시보드', title: '로그인', sub: '대시보드에 접속합니다',
+        user: '아이디', pass: '비밀번호', btn: '로그인',
+        foot: '최초 계정은 서버 시작 시 생성됩니다.',
+        bad: '아이디 또는 비밀번호가 올바르지 않습니다.',
+        csrf: '세션이 만료되었습니다. 페이지를 새로고침한 뒤 다시 시도하세요.',
+        out: '로그아웃되었습니다.'
+      };
+      document.getElementById('badge').textContent = copy.badge;
+      document.querySelector('h1').textContent = copy.title;
+      document.querySelector('.sub').textContent = copy.sub;
+      document.querySelector('label[for="username"]').textContent = copy.user;
+      document.querySelector('label[for="password"]').textContent = copy.pass;
+      document.querySelector('button[type="submit"]').textContent = copy.btn;
+      document.querySelector('.footer-note').textContent = copy.foot;
+      if (en) document.documentElement.lang = 'en';
+
       function showMessage(type, text) {
         var el = document.getElementById('msg');
         el.className = 'msg ' + type;
@@ -174,9 +200,9 @@
 
       var params = new URLSearchParams(window.location.search);
       if (params.has('error')) {
-        showMessage('error', '아이디 또는 비밀번호가 올바르지 않습니다.');
+        showMessage('error', copy.bad);
       } else if (params.has('logout')) {
-        showMessage('success', '로그아웃되었습니다.');
+        showMessage('success', copy.out);
       }
       if ((params.has('error') || params.has('logout')) && window.history && window.history.replaceState) {
         window.history.replaceState({}, document.title, window.location.pathname);
@@ -206,10 +232,14 @@
               location.replace('/');
               return;
             }
-            showMessage('error', '아이디 또는 비밀번호가 올바르지 않습니다.');
+            if (res.status === 403) {
+              showMessage('error', copy.csrf);
+            } else {
+              showMessage('error', copy.bad);
+            }
             if (btn) btn.disabled = false;
           }).catch(function () {
-            showMessage('error', '아이디 또는 비밀번호가 올바르지 않습니다.');
+            showMessage('error', copy.bad);
             if (btn) btn.disabled = false;
           });
         });

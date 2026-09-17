@@ -24,10 +24,20 @@ public class CurrentUserController {
     @GetMapping("/api/me")
     public ResponseEntity<?> getCurrentUser(Authentication authentication) {
       if (authentication == null) return ResponseEntity.status(401).build();
+      java.util.List<String> authorities = authentication.getAuthorities().stream()
+              .map(a -> a.getAuthority())
+              .toList();
+      String role = authorities.stream()
+              .filter(a -> a.startsWith("ROLE_"))
+              .map(a -> a.substring(5))
+              .filter(r -> java.util.Set.of("SUPER_ADMIN", "ADMIN", "VIEWER").contains(r))
+              .findFirst()
+              .orElse("");
       return ResponseEntity.ok(Map.of(
         "username", authentication.getName(),
-        "authorities", authentication.getAuthorities().stream().map(a->a.getAuthority()).toList(),
-        "isAdmin", authentication.getAuthorities().stream().anyMatch(a -> a.getAuthority().contains("ADMIN"))
+        "authorities", authorities,
+        "role", role,
+        "isAdmin", "SUPER_ADMIN".equals(role) || "ADMIN".equals(role)
       ));
     }
 

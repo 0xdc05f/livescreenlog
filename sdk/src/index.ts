@@ -35,6 +35,7 @@ class LiveScreenLogSDK {
   private heartbeatTimer: any = null;
   private flushTimer: any = null;
   private sseConn: EventSource | null = null;
+  private sseRetryDelay = 1000;
   private isRecordingStarted = false;
 
   // Offline buffering + retry (pending for failed/offline, retry with backoff)
@@ -48,14 +49,21 @@ class LiveScreenLogSDK {
   }
 
   public init(options: LiveScreenLogOptions) {
+    this.onInitError = options.onInitError;
     const key = options.apiKey || options.projectKey;
     if (!key) {
       this.logError('init() requires apiKey or projectKey');
+      if (this.onInitError) {
+        this.onInitError(new Error('init() requires apiKey or projectKey'));
+      }
       return;
     }
     const resolvedId = options.id ?? options.userId;
     if (resolvedId == null || resolvedId === '') {
       this.logError('init() requires id (user identifier)');
+      if (this.onInitError) {
+        this.onInitError(new Error('init() requires id (user identifier)'));
+      }
       return;
     }
     this.projectKey = key;
@@ -63,7 +71,6 @@ class LiveScreenLogSDK {
     this.endpoint = options.dsn || options.endpoint || window.location.origin;
     this.mode = options.mode || 'BOTH';
     this.onSessionReady = options.onSessionReady;
-    this.onInitError = options.onInitError;
     this.onStandby = options.onStandby;
     this.sdkIntegration = options.integration || 'browser';
     if (options.tags && typeof options.tags === 'object') {
@@ -75,10 +82,12 @@ class LiveScreenLogSDK {
 
     this.logInfo('Initializing LiveScreenLog SDK', SDK_NAME + '@' + SDK_VERSION, 'Mode:', this.mode);
 
-    // Defer so setUser/setTag/setTags right after init() still apply before handshake
     const begin = () => {
       if (this.mode === 'REPLAY' || this.mode === 'BOTH') {
-        this.ensureRrweb(() => this.startWorkflow());
+        this.ensureRrweb(() => {
+          this.startPreTriggerBuffer();
+          this.startWorkflow();
+        });
       } else {
         this.startWorkflow();
       }
@@ -255,6 +264,10 @@ class LiveScreenLogSDK {
           method: 'POST',
           headers: { 'x-livescreenlog-session-token': this.token },
           credentials: 'omit'
+        }).then((res) => {
+          if (res.status === 401 || res.status === 403) {
+            this.stopLocalRecording();
+          }
         }).catch(() => {});
       }
     }, 15000);
@@ -280,8 +293,29 @@ class LiveScreenLogSDK {
     });
   }
 
+  private stopLocalRecording() {
+    if (this.heartbeatTimer != null) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
+    if (this.flushTimer != null) {
+      clearInterval(this.flushTimer);
+      this.flushTimer = null;
+    }
+    if (this.stopRecord) {
+      try { this.stopRecord(); } catch {}
+      this.stopRecord = null;
+    }
+    this.token = null;
+    this.isRecordingStarted = false;
+  }
+
   private setupModeB() {
     this.logInfo('Standby mode (B): waiting for remote trigger...');
+    if (this.sseConn) {
+      this.sseConn.close();
+      this.sseConn = null;
+    }
     this.startPreTriggerBuffer();
 
     const url = `${this.endpoint}/api/push/connect?projectKey=${encodeURIComponent(this.projectKey)}&userId=${encodeURIComponent(this.userId)}`;
@@ -293,27 +327,37 @@ class LiveScreenLogSDK {
 
     this.sseConn.addEventListener('START_RECORDING', () => {
       this.logInfo('START_RECORDING push event received from admin. Activating session...');
-      if (this.sseConn) {
-        this.sseConn.close();
-        this.sseConn = null;
-      }
       this.requestSessionInit('FORCE')
         .then((data) => {
           if (data.enabled && data.sessionId && data.token) {
+            if (this.sseConn) {
+              this.sseConn.close();
+              this.sseConn = null;
+            }
             this.beginSessionRecording(data.sessionId, data.token);
+            this.sseRetryDelay = 1000;
           } else {
-            this.logError('Server rejected FORCE trigger activation');
+            const err = new Error('Server rejected FORCE trigger');
+            this.logError(err.message);
+            if (this.onInitError) this.onInitError(err);
           }
         })
-        .catch((err) => this.logError('Failed to trigger session activation:', err));
+        .catch((err) => {
+          this.logError('Failed to trigger session activation:', err);
+          if (this.onInitError) {
+            this.onInitError(err instanceof Error ? err : new Error(String(err)));
+          }
+        });
     });
 
     this.sseConn.onerror = () => {
       if (!this.isRecordingStarted && this.sseConn) {
-        this.logInfo('SSE connection disconnected. Re-connecting in 10s...');
         this.sseConn.close();
         this.sseConn = null;
-        setTimeout(() => this.setupModeB(), 10000);
+        const delay = Math.min(this.sseRetryDelay || 1000, 15000);
+        this.sseRetryDelay = Math.min(delay * 1.6, 15000);
+        this.logInfo('SSE disconnected. Reconnecting in', delay, 'ms');
+        setTimeout(() => this.setupModeB(), delay);
       }
     };
   }
@@ -368,15 +412,16 @@ class LiveScreenLogSDK {
     }
     if (batch.length === 0) return;
     this.sendEvents(batch).then((success) => {
+      if (success === 'auth') {
+        return;
+      }
       if (!success) {
-        // re-enqueue to pending (front), schedule retry, persist
         this.pendingQueue.unshift(...batch);
         if (this.pendingQueue.length > MAX_PENDING) {
           this.pendingQueue = this.pendingQueue.slice(-MAX_PENDING);
         }
         this.scheduleRetry();
       } else {
-        // success: reset backoff
         this.retryDelay = 1000;
         this.clearRetryTimer();
       }
@@ -391,10 +436,14 @@ class LiveScreenLogSDK {
   }
 
   // --- Offline buffering + retry helpers (minimal, reuse flush/send/rrweb/pre) ---
+  private pendingStorageKey() {
+    return `${PENDING_STORAGE_KEY}:${this.projectKey || 'default'}:${this.sessionId || 'pre'}`;
+  }
+
   private restorePending() {
     if (typeof localStorage === 'undefined') return;
     try {
-      const stored = localStorage.getItem(PENDING_STORAGE_KEY);
+      const stored = localStorage.getItem(this.pendingStorageKey());
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed)) {
@@ -409,10 +458,10 @@ class LiveScreenLogSDK {
     if (typeof localStorage === 'undefined') return;
     try {
       if (this.pendingQueue.length === 0) {
-        localStorage.removeItem(PENDING_STORAGE_KEY);
+        localStorage.removeItem(this.pendingStorageKey());
       } else {
         const limited = this.pendingQueue.slice(-MAX_PENDING);
-        localStorage.setItem(PENDING_STORAGE_KEY, JSON.stringify(limited));
+        localStorage.setItem(this.pendingStorageKey(), JSON.stringify(limited));
       }
     } catch {}
   }
@@ -447,7 +496,7 @@ class LiveScreenLogSDK {
    * Upload event batch. Gzip when batch is large enough and CompressionStream is available
    * (reduces uplink; client CPU cost only on larger flushes). Falls back to plain JSON.
    */
-  private async sendEvents(batch: any[]): Promise<boolean> {
+  private async sendEvents(batch: any[]): Promise<boolean | 'auth'> {
     if (!this.token || !batch || batch.length === 0) return false;
 
     const json = JSON.stringify(batch);
@@ -481,6 +530,12 @@ class LiveScreenLogSDK {
         body,
         credentials: 'omit',
       });
+      if (res.status === 401 || res.status === 403) {
+        this.pendingQueue = [];
+        this.persistPending();
+        this.stopLocalRecording();
+        return 'auth';
+      }
       return !!res.ok;
     } catch {
       return false;
@@ -591,7 +646,7 @@ class LiveScreenLogSDK {
       const title = document.createElement('div');
       title.id = 'livescreenlog-dialog-title';
       title.className = 'livescreenlog-dialog-title';
-      title.textContent = hostLabel + ' says';
+      title.textContent = hostLabel + (navigator.language?.startsWith('ko') ? ' 메시지' : ' says');
 
       const body = document.createElement('div');
       body.id = 'livescreenlog-dialog-body';
@@ -647,7 +702,7 @@ class LiveScreenLogSDK {
         const cancelBtn = document.createElement('button');
         cancelBtn.type = 'button';
         cancelBtn.className = 'livescreenlog-dialog-btn livescreenlog-dialog-btn-secondary';
-        cancelBtn.textContent = 'Cancel';
+        cancelBtn.textContent = navigator.language?.startsWith('ko') ? '취소' : 'Cancel';
         cancelBtn.addEventListener('click', (e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -659,7 +714,7 @@ class LiveScreenLogSDK {
       const okBtn = document.createElement('button');
       okBtn.type = 'button';
       okBtn.className = 'livescreenlog-dialog-btn livescreenlog-dialog-btn-primary';
-      okBtn.textContent = 'OK';
+        okBtn.textContent = navigator.language?.startsWith('ko') ? '확인' : 'OK';
       okBtn.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -1012,11 +1067,11 @@ class LiveScreenLogSDK {
 
   // --- Log helpers ---
   private logInfo(msg: string, ...args: any[]) {
-    console.log(`%c[LiveScreenLog]%c ${msg}`, 'color: #6366f1; font-weight: bold;', '', ...args);
+    console.log('%c[LiveScreenLog]%c', 'color: #6366f1; font-weight: bold;', '', msg, ...args);
   }
 
   private logError(msg: string, ...args: any[]) {
-    console.error(`%c[LiveScreenLog]%c ${msg}`, 'color: #ef4444; font-weight: bold;', '', ...args);
+    console.error('%c[LiveScreenLog]%c', 'color: #ef4444; font-weight: bold;', '', msg, ...args);
   }
 }
 

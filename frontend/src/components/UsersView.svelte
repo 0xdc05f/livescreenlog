@@ -25,6 +25,8 @@
   let assignRole = $state<'OWNER' | 'ADMIN' | 'VIEWER'>('VIEWER');
   let assignError = $state('');
   let assignLoading = $state(false);
+  let resetPassword = $state('');
+  let resetting = $state(false);
 
   async function loadUsers() {
     loading = true;
@@ -45,11 +47,11 @@
 
   async function createUser() {
     if (!username.trim() || !password.trim()) {
-      formError = 'username and password are required';
+      formError = $t.usersUsernamePasswordRequired;
       return;
     }
     if (password.length < 8) {
-      formError = 'password must be at least 8 characters';
+      formError = $t.usersPasswordTooShort;
       return;
     }
     creating = true;
@@ -69,7 +71,7 @@
         password = '';
         email = '';
         role = 'ADMIN';
-        success = 'User created';
+        success = $t.usersCreated;
         setTimeout(() => success = '', 1800);
       } else {
         const body = await res.json().catch(() => ({}));
@@ -95,7 +97,7 @@
       if (res.ok) {
         const updated = await res.json();
         users = users.map(u => u.id === updated.id ? updated : u);
-        success = newEnabled ? 'Enabled' : 'Disabled';
+        success = newEnabled ? $t.usersEnabledMsg : $t.usersDisabledMsg;
         setTimeout(() => success = '', 1400);
       } else {
         const body = await res.json().catch(() => ({}));
@@ -122,7 +124,7 @@
       if (res.ok) {
         const updated = await res.json();
         users = users.map(u => u.id === updated.id ? updated : u);
-        success = 'Role updated';
+        success = $t.usersRoleUpdated;
         setTimeout(() => success = '', 1400);
       } else {
         const body = await res.json().catch(() => ({}));
@@ -166,8 +168,40 @@
     assignProjectId = null;
     assignRole = 'VIEWER';
     assignError = '';
+    resetPassword = '';
     loadProjects();
     loadUserAssignments(user.id);
+  }
+
+  async function resetUserPassword() {
+    if (!selectedUser) return;
+    if (!resetPassword || resetPassword.length < 8) {
+      assignError = $t.accountTooShort;
+      return;
+    }
+    resetting = true;
+    assignError = '';
+    error = '';
+    success = '';
+    try {
+      const res = await fetch(`/api/admin/users/${selectedUser.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newPassword: resetPassword })
+      });
+      if (res.ok) {
+        resetPassword = '';
+        success = $t.usersPasswordReset;
+        setTimeout(() => success = '', 1400);
+      } else {
+        const body = await res.json().catch(() => ({}));
+        assignError = body?.error || $t.usersUpdateError;
+      }
+    } catch {
+      assignError = $t.usersUpdateError;
+    } finally {
+      resetting = false;
+    }
   }
 
   function clearSelected() {
@@ -178,7 +212,7 @@
 
   async function assignToProject() {
     if (!selectedUser || !assignProjectId) {
-      assignError = 'select a project';
+      assignError = $t.usersSelectProjectError;
       return;
     }
     assignLoading = true;
@@ -194,7 +228,7 @@
       if (res.ok) {
         const assigned = await res.json();
         userAssignments = [...userAssignments, assigned];
-        success = 'Project assigned';
+        success = $t.usersProjectAssigned;
         setTimeout(() => success = '', 1400);
         assignProjectId = null;
       } else {
@@ -223,7 +257,7 @@
       });
       if (res.ok || res.status === 204) {
         userAssignments = userAssignments.filter((a: any) => a.projectId !== projectId);
-        success = 'Assignment removed';
+        success = $t.usersAssignmentRemoved;
         setTimeout(() => success = '', 1400);
       } else {
         const body = await res.json().catch(() => ({}));
@@ -252,7 +286,7 @@
   <div class="view-body">
     <div class="view-main users-main">
       {#if loading}
-        <div class="hint">Loading…</div>
+        <div class="hint">{$t.usersLoading}</div>
       {:else}
         {#if error}
           <div class="alert error">{error}</div>
@@ -268,20 +302,20 @@
           {/if}
           <div class="user-form">
             <div class="row">
-              <label class="flabel">{$t.usersUsernameLabel}</label>
-              <input type="text" bind:value={username} class="cfg-input" placeholder="adminuser" />
+              <label class="flabel" for="user-username">{$t.usersUsernameLabel}</label>
+              <input id="user-username" type="text" bind:value={username} class="cfg-input" placeholder="adminuser" />
             </div>
             <div class="row">
-              <label class="flabel">{$t.usersPasswordLabel}</label>
-              <input type="password" bind:value={password} class="cfg-input" placeholder="min 8 chars" />
+              <label class="flabel" for="user-password">{$t.usersPasswordLabel}</label>
+              <input id="user-password" type="password" bind:value={password} class="cfg-input" placeholder="min 8 chars" />
             </div>
             <div class="row">
-              <label class="flabel">{$t.usersEmailLabel}</label>
-              <input type="email" bind:value={email} class="cfg-input" placeholder="optional@example.com" />
+              <label class="flabel" for="user-email">{$t.usersEmailLabel}</label>
+              <input id="user-email" type="email" bind:value={email} class="cfg-input" placeholder="optional@example.com" />
             </div>
             <div class="row">
-              <label class="flabel">{$t.usersRoleLabel}</label>
-              <select bind:value={role} class="cfg-input">
+              <label class="flabel" for="user-role">{$t.usersRoleLabel}</label>
+              <select id="user-role" bind:value={role} class="cfg-input">
                 <option value="SUPER_ADMIN">{$t.usersRoleSuper}</option>
                 <option value="ADMIN">{$t.usersRoleAdmin}</option>
                 <option value="VIEWER">{$t.usersRoleViewer}</option>
@@ -390,17 +424,24 @@
             </div>
             <div class="assign-form">
               <div class="row">
-                <label class="flabel">{$t.usersProject}</label>
-                <select bind:value={assignProjectId} class="cfg-input">
-                  <option value={null}>— select —</option>
+                <label class="flabel" for="reset-password">{$t.usersResetPassword}</label>
+                <input id="reset-password" type="password" bind:value={resetPassword} class="cfg-input" placeholder="min 8 chars" />
+                <button class="btn btn-primary" disabled={resetting || !resetPassword} onclick={resetUserPassword}>
+                  {$t.usersResetPassword}
+                </button>
+              </div>
+              <div class="row">
+                <label class="flabel" for="assign-project">{$t.usersProject}</label>
+                <select id="assign-project" bind:value={assignProjectId} class="cfg-input">
+                  <option value={null}>{$t.usersSelectPlaceholder}</option>
                   {#each projects as p (p.id)}
                     <option value={p.id}>{p.name} (#{p.id})</option>
                   {/each}
                 </select>
               </div>
               <div class="row">
-                <label class="flabel">{$t.usersRoleInProject}</label>
-                <select bind:value={assignRole} class="cfg-input role-select">
+                <label class="flabel" for="assign-role">{$t.usersRoleInProject}</label>
+                <select id="assign-role" bind:value={assignRole} class="cfg-input role-select">
                   <option value="OWNER">OWNER</option>
                   <option value="ADMIN">ADMIN</option>
                   <option value="VIEWER">VIEWER</option>

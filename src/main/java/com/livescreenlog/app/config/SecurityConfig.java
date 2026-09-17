@@ -1,6 +1,7 @@
 package com.livescreenlog.app.config;
 
 import com.livescreenlog.app.security.HmacAuthenticationFilter;
+import com.livescreenlog.app.security.LoginRateLimitFilter;
 import com.livescreenlog.app.service.ServerConfigService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -20,6 +21,9 @@ import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfFilter;
+import org.springframework.security.web.csrf.CsrfToken;
+import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -32,6 +36,7 @@ import java.util.List;
 public class SecurityConfig {
 
     private final HmacAuthenticationFilter hmacAuthenticationFilter;
+    private final LoginRateLimitFilter loginRateLimitFilter;
     private final LiveScreenLogProperties properties;
     private final ServerConfigService serverConfigService;
 
@@ -42,6 +47,7 @@ public class SecurityConfig {
         http
                 .csrf(csrf -> csrf
                         .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                        .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
                         .ignoringRequestMatchers(
                                 PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, "/api/sessions"),
                                 PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, "/api/events"),
@@ -107,7 +113,18 @@ public class SecurityConfig {
                 })
                 .formLogin(form -> form.loginPage("/login").defaultSuccessUrl("/", true).permitAll())
                 .logout(logout -> logout.logoutSuccessUrl("/login?logout").permitAll())
-                .addFilterBefore(hmacAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(hmacAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(loginRateLimitFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter((request, response, chain) -> {
+                    CsrfToken token = (CsrfToken) request.getAttribute(CsrfToken.class.getName());
+                    if (token == null) {
+                        token = (CsrfToken) request.getAttribute("_csrf");
+                    }
+                    if (token != null) {
+                        token.getToken();
+                    }
+                    chain.doFilter(request, response);
+                }, CsrfFilter.class);
 
         return http.build();
     }

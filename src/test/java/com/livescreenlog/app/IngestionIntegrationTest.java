@@ -249,4 +249,60 @@ class IngestionIntegrationTest {
                                 """))
                 .andExpect(status().isUnauthorized());
     }
+
+    @Test
+    void rotateApiKeyKeepsSessionReadable() throws Exception {
+        MvcResult created = mockMvc.perform(post("/api/projects")
+                        .with(user("admin").roles("SUPER_ADMIN"))
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"rotate-test"}
+                                """))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode project = objectMapper.readTree(created.getResponse().getContentAsString());
+        long projectId = project.get("id").asLong();
+        String apiKey = project.get("apiKey").asText();
+
+        MvcResult sessionResult = mockMvc.perform(post("/api/sessions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "projectKey": "%s",
+                                  "userId": "rotate-user"
+                                }
+                                """.formatted(apiKey)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.enabled").value(true))
+                .andReturn();
+        JsonNode sessionBody = objectMapper.readTree(sessionResult.getResponse().getContentAsString());
+        String sessionId = sessionBody.get("sessionId").asText();
+
+        mockMvc.perform(post("/api/projects/" + projectId + "/rotate-key")
+                        .with(user("admin").roles("SUPER_ADMIN"))
+                        .with(csrf()))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/sessions/" + sessionId)
+                        .with(user("admin").roles("SUPER_ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sessionId").value(sessionId));
+    }
+
+    @Test
+    void loginThrottledAfterTooManyAttempts() throws Exception {
+        String username = "throttle-" + System.nanoTime();
+        int lastStatus = 0;
+        for (int i = 0; i < 12; i++) {
+            lastStatus = mockMvc.perform(post("/login")
+                            .with(csrf())
+                            .param("username", username)
+                            .param("password", "wrong-password"))
+                    .andReturn()
+                    .getResponse()
+                    .getStatus();
+        }
+        assertThat(lastStatus).isEqualTo(429);
+    }
 }

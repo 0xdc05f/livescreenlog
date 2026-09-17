@@ -24,6 +24,13 @@ public interface SessionMetadataRepository extends JpaRepository<SessionMetadata
     """)
     int markStaleSessionsStopped(@Param("cutoff") ZonedDateTime cutoff);
 
+    @Query("SELECT s FROM SessionMetadata s WHERE s.status = 'ACTIVE' AND s.updatedAt < :cutoff")
+    List<SessionMetadata> findStaleActive(@Param("cutoff") ZonedDateTime cutoff);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE SessionMetadata s SET s.projectKey = :newKey WHERE s.projectKey = :oldKey")
+    int reassignProjectKey(@Param("oldKey") String oldKey, @Param("newKey") String newKey);
+
     @Modifying
     @Query("DELETE FROM SessionMetadata s WHERE s.createdAt < :cutoff")
     int deleteOlderThan(@Param("cutoff") ZonedDateTime cutoff);
@@ -32,11 +39,19 @@ public interface SessionMetadataRepository extends JpaRepository<SessionMetadata
     @Query("UPDATE SessionMetadata s SET s.updatedAt = :now WHERE s.sessionId = :id")
     int touchUpdatedAt(@Param("id") String id, @Param("now") ZonedDateTime now);
 
+    @Modifying
+    @Query("""
+        UPDATE SessionMetadata s
+        SET s.updatedAt = :now, s.hasError = CASE WHEN :hasError = true THEN true ELSE s.hasError END
+        WHERE s.sessionId = :id AND s.status = 'ACTIVE'
+        """)
+    int touchActive(@Param("id") String id, @Param("now") ZonedDateTime now, @Param("hasError") boolean hasError);
+
     @Query(value = """
         SELECT COUNT(DISTINCT user_id) FROM session_metadata
         WHERE status = 'ACTIVE' AND updated_at >= :cutoff
           AND user_id IS NOT NULL AND user_id <> ''
-          AND (CAST(:projectKey AS text) IS NULL OR project_key = :projectKey)
+          AND ( :projectKey IS NULL OR project_key = :projectKey )
           AND (:unrestricted = true OR project_key IN (:allowed))
         """, nativeQuery = true)
     long countLiveUsers(@Param("cutoff") ZonedDateTime cutoff,
@@ -47,7 +62,7 @@ public interface SessionMetadataRepository extends JpaRepository<SessionMetadata
     @Query(value = """
         SELECT COUNT(*) FROM session_metadata
         WHERE status = 'ACTIVE' AND updated_at >= :cutoff
-          AND (CAST(:projectKey AS text) IS NULL OR project_key = :projectKey)
+          AND ( :projectKey IS NULL OR project_key = :projectKey )
           AND (:unrestricted = true OR project_key IN (:allowed))
         """, nativeQuery = true)
     long countLiveSessions(@Param("cutoff") ZonedDateTime cutoff,
@@ -61,7 +76,7 @@ public interface SessionMetadataRepository extends JpaRepository<SessionMetadata
                COUNT(DISTINCT user_id) AS users
         FROM session_metadata
         WHERE created_at >= :from AND created_at < :to
-          AND (CAST(:projectKey AS text) IS NULL OR project_key = :projectKey)
+          AND ( :projectKey IS NULL OR project_key = :projectKey )
           AND (:unrestricted = true OR project_key IN (:allowed))
         GROUP BY 1 ORDER BY 1
         """, nativeQuery = true)
@@ -77,7 +92,7 @@ public interface SessionMetadataRepository extends JpaRepository<SessionMetadata
                COUNT(DISTINCT user_id) AS users
         FROM session_metadata
         WHERE created_at >= :from AND created_at < :to
-          AND (CAST(:projectKey AS text) IS NULL OR project_key = :projectKey)
+          AND ( :projectKey IS NULL OR project_key = :projectKey )
           AND (:unrestricted = true OR project_key IN (:allowed))
         GROUP BY 1 ORDER BY 1
         """, nativeQuery = true)
@@ -93,7 +108,7 @@ public interface SessionMetadataRepository extends JpaRepository<SessionMetadata
                COUNT(DISTINCT user_id) AS users
         FROM session_metadata
         WHERE created_at >= :from AND created_at < :to
-          AND (CAST(:projectKey AS text) IS NULL OR project_key = :projectKey)
+          AND ( :projectKey IS NULL OR project_key = :projectKey )
           AND (:unrestricted = true OR project_key IN (:allowed))
         GROUP BY 1 ORDER BY 1
         """, nativeQuery = true)

@@ -35,7 +35,7 @@ public class AdminUserController {
     @GetMapping
     public ResponseEntity<List<UserSummary>> listUsers() {
         List<UserSummary> summaries = userRepository.findAll().stream()
-                .map(u -> new UserSummary(u.getId(), u.getUsername(), u.getRole(), u.isEnabled(), u.getCreatedAt()))
+                .map(u -> new UserSummary(u.getId(), u.getUsername(), u.getEmail(), u.getRole(), u.isEnabled(), u.getCreatedAt()))
                 .toList();
         return ResponseEntity.ok(summaries);
     }
@@ -67,7 +67,7 @@ public class AdminUserController {
                 .enabled(true)
                 .build();
         User saved = userRepository.save(user);
-        UserSummary summary = new UserSummary(saved.getId(), saved.getUsername(), saved.getRole(), saved.isEnabled(), saved.getCreatedAt());
+        UserSummary summary = new UserSummary(saved.getId(), saved.getUsername(), saved.getEmail(), saved.getRole(), saved.isEnabled(), saved.getCreatedAt());
         return ResponseEntity.ok(summary);
     }
 
@@ -95,8 +95,14 @@ public class AdminUserController {
             }
             user.setEnabled(req.enabled());
         }
+        if (req.newPassword() != null && !req.newPassword().isBlank()) {
+            if (req.newPassword().length() < 8) {
+                return ResponseEntity.badRequest().body(Map.of("error", "password must be at least 8 characters"));
+            }
+            user.setPasswordHash(passwordEncoder.encode(req.newPassword()));
+        }
         User saved = userRepository.save(user);
-        UserSummary summary = new UserSummary(saved.getId(), saved.getUsername(), saved.getRole(), saved.isEnabled(), saved.getCreatedAt());
+        UserSummary summary = new UserSummary(saved.getId(), saved.getUsername(), saved.getEmail(), saved.getRole(), saved.isEnabled(), saved.getCreatedAt());
         return ResponseEntity.ok(summary);
     }
 

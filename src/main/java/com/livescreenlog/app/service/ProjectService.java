@@ -6,6 +6,7 @@ import com.livescreenlog.app.domain.UserProject;
 import com.livescreenlog.app.dto.ProjectCreateRequest;
 import com.livescreenlog.app.dto.ProjectDto;
 import com.livescreenlog.app.repository.ProjectRepository;
+import com.livescreenlog.app.repository.SessionMetadataRepository;
 import com.livescreenlog.app.repository.UserProjectRepository;
 import com.livescreenlog.app.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -27,14 +28,18 @@ public class ProjectService {
     private final UserProjectAccessService userProjectAccessService;
     private final UserRepository userRepository;
     private final UserProjectRepository userProjectRepository;
+    private final SessionMetadataRepository sessionMetadataRepository;
 
     @Transactional(readOnly = true)
     public List<ProjectDto> listAll() {
         List<String> allowed = userProjectAccessService.getAllowedProjectKeys();
-        return projectRepository.findAll().stream()
-                .filter(p -> allowed == null || allowed.contains(p.getApiKey()))
-                .map(this::toDto)
-                .toList();
+        if (allowed != null && allowed.isEmpty()) {
+            return List.of();
+        }
+        List<Project> projects = allowed == null
+                ? projectRepository.findAll()
+                : projectRepository.findByApiKeyIn(allowed);
+        return projects.stream().map(this::toDto).toList();
     }
 
     @Transactional
@@ -81,6 +86,7 @@ public class ProjectService {
     @Transactional
     public ProjectDto rotateApiKey(Long id) {
         Project project = requireManageable(id);
+        String oldKey = project.getApiKey();
         String apiKey = "sl_" + UUID.randomUUID().toString().replace("-", "");
         Project updated = Project.builder()
                 .id(project.getId())
@@ -91,7 +97,9 @@ public class ProjectService {
                 .recordingMode(project.getRecordingMode())
                 .targetUsers(project.getTargetUsers())
                 .build();
-        return toDto(projectRepository.save(updated));
+        projectRepository.save(updated);
+        sessionMetadataRepository.reassignProjectKey(oldKey, apiKey);
+        return toDto(updated);
     }
 
     @Transactional(readOnly = true)
@@ -125,11 +133,19 @@ public class ProjectService {
     }
 
     private ProjectDto toDto(Project p) {
+        String apiKey = p.getApiKey();
+        if (!userProjectAccessService.canManageProject(apiKey)) {
+            if (apiKey == null || apiKey.length() < 7) {
+                apiKey = "sl_••••";
+            } else {
+                apiKey = apiKey.substring(0, 3) + "••••" + apiKey.substring(apiKey.length() - 4);
+            }
+        }
         return new ProjectDto(
             p.getId(), 
             p.getName(), 
             p.getDescription(), 
-            p.getApiKey(), 
+            apiKey, 
             p.getRecordingMode(), 
             p.getTargetUsers(), 
             p.getCreatedAt()

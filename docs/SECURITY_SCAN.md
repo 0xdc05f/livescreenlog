@@ -43,9 +43,9 @@ Snyk IDs addressed: `SNYK-JAVA-COMFASTERXMLJACKSONCORE-19778370` (high), `SNYK-J
 
 Existing design findings, not dependency upgrades:
 
-- CSRF disabled in `SecurityConfig` (ingest API + HMAC session tokens; dashboard uses cookie session).
-- Low CSRF notes on admin/project controllers follow from that.
-- Medium format-string note in `sdk/src/index.ts` (console logging of location) — not a library bump.
+- Dashboard uses cookie CSRF (CookieCsrfTokenRepository). Ingest POST /api/sessions,/api/events,/api/heartbeat,/api/stop are CSRF-ignored and HMAC-authenticated.
+- Format-string in SDK was fixed (msg not in format string).
+- Flyway gradle plugin is 13.6.0.
 
 Snyk Secrets is not enabled for the current org.
 
@@ -53,7 +53,6 @@ Snyk Secrets is not enabled for the current org.
 
 - TypeScript 7
 - Spring Boot 4.2.0-M1
-- Flyway 13 (runtime stays on BOM Flyway 12.4.0)
 
 ## Summary
 

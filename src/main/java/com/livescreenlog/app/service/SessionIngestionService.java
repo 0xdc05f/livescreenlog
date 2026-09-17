@@ -47,6 +47,7 @@ public class SessionIngestionService {
     private final RateLimitService rateLimitService;
     private final ServerConfigService serverConfigService;
     private final ForceTriggerService forceTriggerService;
+    private final SessionLiveService sessionLiveService;
 
     @Transactional
     public SessionCreateResponse createSession(SessionCreateRequest request, String clientKey) {
@@ -134,7 +135,6 @@ public class SessionIngestionService {
 
     @Transactional
     public void appendEvents(String sessionId, String eventsJson) {
-        requireActiveSession(sessionId);
         if (eventsJson == null) {
             throw new IllegalArgumentException("Events payload is required");
         }
@@ -166,35 +166,30 @@ public class SessionIngestionService {
                     hasErrorEvent = true;
                 }
                 long timestamp = eventNode.has("timestamp") ? eventNode.get("timestamp").asLong() : System.currentTimeMillis();
-                try {
-                    String eventData = objectMapper.writeValueAsString(eventNode);
-                    events.add(new SessionEvent(sessionId, timestamp, eventData));
-                } catch (JacksonException e) {
-                    log.error("Failed to serialize event node", e);
-                }
+                String eventData = eventNode.toString();
+                events.add(new SessionEvent(sessionId, timestamp, eventData));
             }
 
             if (!events.isEmpty()) {
                 eventRepository.batchInsert(events);
-                touchHeartbeatThrottled(sessionId);
-                if (hasErrorEvent) {
-                    metadataRepository.findById(sessionId).ifPresent(metadata -> {
-                        metadata.markHasError();
-                        metadataRepository.save(metadata);
-                    });
+                int touched = metadataRepository.touchActive(sessionId, ZonedDateTime.now(), hasErrorEvent);
+                if (touched == 0) {
+                    throw new IllegalArgumentException("Session is not active");
                 }
 
                 String channel = "session:live:" + sessionId;
                 String payload = eventsJson;
-                if (TransactionSynchronizationManager.isSynchronizationActive()) {
-                    TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                        @Override
-                        public void afterCommit() {
-                            redisTemplate.convertAndSend(channel, payload);
-                        }
-                    });
-                } else {
-                    redisTemplate.convertAndSend(channel, payload);
+                if (sessionLiveService.hasSubscribers(sessionId)) {
+                    if (TransactionSynchronizationManager.isSynchronizationActive()) {
+                        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                            @Override
+                            public void afterCommit() {
+                                redisTemplate.convertAndSend(channel, payload);
+                            }
+                        });
+                    } else {
+                        redisTemplate.convertAndSend(channel, payload);
+                    }
                 }
             }
         } catch (JacksonException e) {

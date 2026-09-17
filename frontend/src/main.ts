@@ -17,7 +17,12 @@ window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
       headers: { ...csrfHeader(), ...(init?.headers as Record<string, string> | undefined) },
     }
   }
-  return nativeFetch(input, init)
+  return nativeFetch(input, init).then((res) => {
+    if (res.status === 401 && !location.pathname.startsWith('/login')) {
+      location.replace('/login')
+    }
+    return res
+  })
 }
 
 const app = mount(App, {

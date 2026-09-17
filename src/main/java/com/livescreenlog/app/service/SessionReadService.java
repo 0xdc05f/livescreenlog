@@ -77,8 +77,7 @@ public class SessionReadService {
             if (queryVal != null && !queryVal.isBlank()) {
                 String trimmed = queryVal.trim();
                 String lower = trimmed.toLowerCase();
-                // Prefer prefix/contains patterns that work with pg_trgm gin indexes on lower(col)
-                String pattern = "%" + lower + "%";
+                String pattern = likePattern(trimmed);
 
                 List<String> matchedProjectKeys = projectNameCache.entrySet().stream()
                         .filter(e -> e.getValue() != null && e.getValue().toLowerCase().contains(lower))
@@ -86,13 +85,11 @@ public class SessionReadService {
                         .toList();
 
                 List<Predicate> queryPredicates = new ArrayList<>();
-                // Exact userId match is cheap when operators paste full employee id
                 queryPredicates.add(cb.equal(root.get("userId"), trimmed));
-                queryPredicates.add(cb.like(cb.lower(root.get("userId")), pattern));
-                queryPredicates.add(cb.like(cb.lower(root.get("source")), pattern));
-                // distinctId (UA) only when query looks browser/os related or long enough
+                queryPredicates.add(cb.like(cb.lower(root.get("userId")), pattern, '\\'));
+                queryPredicates.add(cb.like(cb.lower(root.get("source")), pattern, '\\'));
                 if (lower.length() >= 4) {
-                    queryPredicates.add(cb.like(cb.lower(root.get("distinctId")), pattern));
+                    queryPredicates.add(cb.like(cb.lower(root.get("distinctId")), pattern, '\\'));
                 }
 
                 if (!matchedProjectKeys.isEmpty()) {
@@ -141,17 +138,11 @@ public class SessionReadService {
     }
 
     public List<SessionEvent> getSessionEvents(String sessionId) {
-        if (!userProjectAccessService.hasAccessToSession(sessionId)) {
-            return List.of();
-        }
         int cap = Math.max(1, properties.getMaxEventFullDumpSize());
         return eventRepository.findBySessionIdPaged(sessionId, null, cap);
     }
 
     public SessionEventsPage getSessionEventsPage(String sessionId, Long afterId, Integer limit) {
-        if (!userProjectAccessService.hasAccessToSession(sessionId)) {
-            return new SessionEventsPage(List.of(), null, false);
-        }
         int defaultSize = Math.max(1, properties.getDefaultEventPageSize());
         int maxSize = Math.max(defaultSize, properties.getMaxEventPageSize());
         int pageSize = limit == null ? defaultSize : Math.min(Math.max(limit, 1), maxSize);
@@ -198,5 +189,10 @@ public class SessionReadService {
         projectRepository.findAll().forEach(p -> fresh.put(p.getApiKey(), p.getName()));
         projectNameCache.clear();
         projectNameCache.putAll(fresh);
+    }
+
+    private static String likePattern(String raw) {
+        String escaped = raw.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+        return "%" + escaped.toLowerCase() + "%";
     }
 }

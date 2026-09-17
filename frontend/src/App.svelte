@@ -11,7 +11,7 @@
   import StatsView from "./components/StatsView.svelte";
   import { t, locale } from './i18n';
   import { formatDateTime, formatRange, formatDurationMs } from './lib/dateFormat';
-  import { isSessionLive } from './lib/sessionLive';
+  import { isSessionLive, sessionActivity } from './lib/sessionLive';
 
   let activeNav = $state<'replay' | 'settings'>('replay');
   let settingsTab = $state<'projects' | 'guide' | 'server' | 'users' | 'account' | 'stats'>('projects');
@@ -127,24 +127,31 @@
     window.removeEventListener('popstate', onPopState);
   });
 
+  let eventsAbort: AbortController | null = null;
+
   async function handleSelectSession(session: any) {
     selectedSession = session;
     sessionEvents = [];
     seekFn = null;
     navigate('replay');
     eventsLoading = true;
+    eventsAbort?.abort();
+    eventsAbort = new AbortController();
+    const signal = eventsAbort.signal;
     try {
       const all: any[] = [];
       let afterId: number | null = null;
       let hasMore = true;
-      while (hasMore) {
+      let pages = 0;
+      while (hasMore && pages < 10) {
         const params = new URLSearchParams({ paged: 'true', limit: '2000' });
         if (afterId != null) params.set('afterId', String(afterId));
-        const res = await fetch(`/api/sessions/${session.sessionId}/events?${params}`);
+        const res = await fetch(`/api/sessions/${session.sessionId}/events?${params}`, { signal });
         if (!res.ok) break;
         const page = await res.json();
         const batch = Array.isArray(page) ? page : (page.events || []);
         all.push(...batch);
+        pages += 1;
         if (Array.isArray(page)) {
           hasMore = false;
         } else {
@@ -153,9 +160,13 @@
           if (!hasMore || batch.length === 0) hasMore = false;
         }
       }
-      sessionEvents = all;
-    } catch (e) { console.error('Failed to fetch events', e); }
-    finally { eventsLoading = false; }
+      if (!signal.aborted) sessionEvents = all;
+    } catch (e) {
+      if (!(e instanceof DOMException && e.name === 'AbortError')) {
+        console.error('Failed to fetch events', e);
+      }
+    }
+    finally { if (!signal.aborted) eventsLoading = false; }
   }
 
   function handlePlayerReady({ seekTo }: { seekTo: (ms: number) => void }) {
@@ -210,10 +221,7 @@
   }
 
   function isEndedSession(session: any): boolean {
-    if (!session) return false;
-    if (session.status === 'STOPPED') return true;
-    const diffMin = (Date.now() - new Date(session.updatedAt).getTime()) / 60000;
-    return diffMin >= 30;
+    return sessionActivity(session) === 'ended';
   }
 
   function sessionBarTime(session: any): string {
@@ -248,10 +256,6 @@
   function goUsers() { navigate('settings', 'users'); }
 </script>
 
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-
 <div class="app-shell">
   <header class="topbar">
     <button type="button" class="topbar-left" onclick={() => navigate('replay')} aria-label={$t.settingsMenuPlayer}>
@@ -266,7 +270,6 @@
       </div>
       <div class="brand-block">
         <div class="app-title">{$t.appTitle}</div>
-        <div class="app-subtitle">{$t.appSubtitle}</div>
       </div>
     </button>
     <div class="topbar-right">
@@ -286,7 +289,7 @@
     </div>
   </header>
 
-  <div class="dashboard">
+  <div class="dashboard" class:has-session={activeNav === 'replay' && !!selectedSession}>
     <aside class="left-panel">
       <div class="panel-nav">
         <button
@@ -452,7 +455,7 @@
          {:else if settingsTab === 'account'}
             <AccountView onClose={() => navigate('replay')} />
          {:else}
-            <IntegrationGuideView {projects} onClose={() => navigate('replay')} />
+            <IntegrationGuideView {projects} canManage={canManage} onClose={() => navigate('replay')} />
          {/if}
         {:else}
         {#if recLoading || recommendedSessions.length > 0}
@@ -478,10 +481,10 @@
           {#if selectedSession}
            <div class="session-bar">
              <div class="session-bar-left">
+               <span class="session-bar-user">{selectedSession.userId || $t.anonymous}</span>
                <span class="session-bar-title">
                  {projectTitle(selectedSession)}
                </span>
-               <span class="session-bar-user">{selectedSession.userId || $t.anonymous}</span>
              </div>
              <div class="session-bar-meta">
                <span class="session-bar-time" title={sessionBarTime(selectedSession)}>
@@ -542,7 +545,7 @@
              <h3>{$t.noSessionSelected}</h3>
              <p>{$t.noSessionDesc}</p>
              <div class="empty-cta-row">
-               <button type="button" class="btn-primary" onclick={goProjects}>{$t.emptyCtaProjects}</button>
+                <button type="button" class="btn-secondary" onclick={goProjects}>{$t.emptyCtaProjects}</button>
                <button type="button" class="btn-secondary" onclick={goGuide}>{$t.emptyCtaGuide}</button>
              </div>
            </div>
@@ -552,14 +555,15 @@
 
     {#if activeNav === 'replay'}
       <aside class="right-panel">
-        <SessionDetails
-          session={selectedSession}
-          events={sessionEvents}
-          onSeekTo={handleSeekTo}
-          onForceStop={handleForceStop}
-          onDeleteSession={handleDeleteSession}
-          loading={eventsLoading}
-        />
+         <SessionDetails
+           session={selectedSession}
+           events={sessionEvents}
+           onSeekTo={handleSeekTo}
+           onForceStop={handleForceStop}
+           onDeleteSession={handleDeleteSession}
+           loading={eventsLoading}
+           canManage={canManage}
+         />
       </aside>
     {/if}
   </div>

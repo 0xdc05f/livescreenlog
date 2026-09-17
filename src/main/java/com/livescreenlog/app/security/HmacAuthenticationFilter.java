@@ -57,24 +57,28 @@ public class HmacAuthenticationFilter extends OncePerRequestFilter {
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                 return;
             }
+            if (parts[0].isEmpty() || parts[0].length() > 512 || parts[1].isEmpty() || parts[1].length() > 64) {
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                return;
+            }
 
             String sessionId = new String(Base64.getUrlDecoder().decode(parts[0]), StandardCharsets.UTF_8);
             long expirationMillis = Long.parseLong(new String(Base64.getUrlDecoder().decode(parts[1]), StandardCharsets.UTF_8));
             String signature = parts[2];
 
-            if (System.currentTimeMillis() > expirationMillis) {
-                log.warn("Token expired for session: {}", sessionId);
-                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                return;
-            }
-
             String expectedSignature = calculateSignature(sessionId, expirationMillis);
+            if (System.currentTimeMillis() > expirationMillis) {
+                log.warn("token expired");
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                return;
+            }
             if (!MessageDigest.isEqual(expectedSignature.getBytes(StandardCharsets.UTF_8), signature.getBytes(StandardCharsets.UTF_8))) {
-                log.warn("Invalid signature for session: {}", sessionId);
+                log.warn("invalid signature");
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                 return;
             }
 
+            sessionId = sessionId.replaceAll("[\\r\\n\\t]", "");
             SessionMetadata metadata = sessionMetadataRepository.findById(sessionId).orElse(null);
             if (metadata == null) {
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);

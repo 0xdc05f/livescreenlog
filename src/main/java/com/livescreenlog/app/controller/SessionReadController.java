@@ -1,6 +1,5 @@
 package com.livescreenlog.app.controller;
 
-import com.livescreenlog.app.domain.SessionEvent;
 import com.livescreenlog.app.dto.SessionEventsPage;
 import com.livescreenlog.app.dto.SessionResponse;
 import com.livescreenlog.app.service.SessionIngestionService;
@@ -25,6 +24,10 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.nio.charset.StandardCharsets;
 import java.time.ZonedDateTime;
 import java.util.List;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @RestController
 @RequestMapping("/api/sessions")
@@ -36,6 +39,11 @@ public class SessionReadController {
     private final SessionIngestionService ingestionService;
     private final UserProjectAccessService userProjectAccessService;
     private final ObjectMapper objectMapper;
+    private final ScheduledExecutorService listPingScheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+        Thread t = new Thread(r, "session-list-sse-ping");
+        t.setDaemon(true);
+        return t;
+    });
 
     @GetMapping
     public ResponseEntity<Page<SessionResponse>> searchSessions(
@@ -56,7 +64,7 @@ public class SessionReadController {
 
     @GetMapping("/recommended")
     public ResponseEntity<List<SessionResponse>> getRecommendedSessions(@RequestParam(defaultValue = "6") int limit) {
-        List<SessionResponse> result = readService.getRecommendedSessions(limit);
+        List<SessionResponse> result = readService.getRecommendedSessions(Math.min(Math.max(limit, 1), 20));
         return ResponseEntity.ok(result);
     }
 
@@ -68,13 +76,16 @@ public class SessionReadController {
     public SseEmitter liveSessionList() {
         SseEmitter emitter = new SseEmitter(30 * 60 * 1000L);
 
+        List<String> allowed = userProjectAccessService.getAllowedProjectKeys();
+        boolean unrestricted = (allowed == null);
+        List<String> allowedKeys = allowed == null ? List.of() : List.copyOf(allowed);
+
         MessageListener listener = (message, pattern) -> {
             try {
                 String payload = new String(message.getBody(), StandardCharsets.UTF_8);
                 JsonNode node = objectMapper.readTree(payload);
                 String projectKey = node.path("projectKey").asText(null);
-                if (projectKey != null && !projectKey.isBlank()
-                        && !userProjectAccessService.hasAccessToProject(projectKey)) {
+                if (!unrestricted && (projectKey == null || projectKey.isBlank() || !allowedKeys.contains(projectKey))) {
                     return;
                 }
                 emitter.send(SseEmitter.event().name("session_created").data(payload));
@@ -86,7 +97,22 @@ public class SessionReadController {
         ChannelTopic topic = new ChannelTopic("session:created");
         redisMessageListenerContainer.addMessageListener(listener, topic);
 
-        Runnable cleanup = () -> redisMessageListenerContainer.removeMessageListener(listener, topic);
+        var pingFuture = listPingScheduler.scheduleAtFixedRate(() -> {
+            try {
+                emitter.send(SseEmitter.event().comment("ping"));
+            } catch (Exception e) {
+                emitter.complete();
+            }
+        }, 15, 15, TimeUnit.SECONDS);
+
+        AtomicBoolean cleaned = new AtomicBoolean();
+        Runnable cleanup = () -> {
+            if (!cleaned.compareAndSet(false, true)) {
+                return;
+            }
+            pingFuture.cancel(false);
+            redisMessageListenerContainer.removeMessageListener(listener, topic);
+        };
         emitter.onCompletion(cleanup);
         emitter.onTimeout(cleanup);
         emitter.onError(e -> cleanup.run());
@@ -108,7 +134,7 @@ public class SessionReadController {
     }
 
     @GetMapping("/{id}/events")
-    public ResponseEntity<?> getSessionEvents(
+    public ResponseEntity<SessionEventsPage> getSessionEvents(
             @PathVariable String id,
             @RequestParam(required = false) Long afterId,
             @RequestParam(required = false) Integer limit,
@@ -117,15 +143,8 @@ public class SessionReadController {
         if (!readService.canReadSession(id)) {
             return ResponseEntity.notFound().build();
         }
-
-        if (paged) {
-            SessionEventsPage page = readService.getSessionEventsPage(id, afterId, limit);
-            return ResponseEntity.ok(page);
-        }
-
-        // Legacy full dump — still hard-capped server-side
-        List<SessionEvent> events = readService.getSessionEvents(id);
-        return ResponseEntity.ok(events);
+        SessionEventsPage page = readService.getSessionEventsPage(id, afterId, limit);
+        return ResponseEntity.ok(page);
     }
 
     // security: admin protected via SecurityConfig (hasAnyRole ADMIN/SUPER_ADMIN on /api/sessions/**)

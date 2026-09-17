@@ -4,7 +4,7 @@
   import { buildSessionTags, formatSdkBadge, parseUserAgent } from '../lib/uaParse';
   import { formatCompact, formatRange } from '../lib/dateFormat';
   import DeviceIcons from '../components/DeviceIcons.svelte';
-  import { isSessionLive, LIVE_WINDOW_MS } from '../lib/sessionLive';
+  import { isSessionLive, sessionActivity, LIVE_WINDOW_MS } from '../lib/sessionLive';
 
   let { onSelect, selectedSessionId, projects = [] } = $props();
 
@@ -23,23 +23,32 @@
   let sseRetryTimer: any = null;
   let sseRetryCount = 0;
 
-  let startDate = $state('');
-  let endDate = $state('');
-  let activePreset = $state('all');
+  function toDateStr(d: Date) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  const todayInit = toDateStr(new Date());
+  let startDate = $state(todayInit);
+  let endDate = $state(todayInit);
+  let activePreset = $state('today');
 
   let advancedActive = $derived(
-    !!(selectedProjectKey || source || (activePreset !== 'all'))
+    !!(selectedProjectKey || source || (activePreset !== 'today'))
   );
   let advancedCount = $derived(
     (selectedProjectKey ? 1 : 0) +
     (source ? 1 : 0) +
-    (activePreset !== 'all' ? 1 : 0)
+    (activePreset !== 'today' ? 1 : 0)
   );
   let filtersOpen = $state(false);
 
   const statusOptions = [
     { key: '', label: () => $t.filterAll, dot: '' },
     { key: 'ACTIVE', label: () => $t.filterLive, dot: 'green' },
+    { key: 'IDLE', label: () => $t.filterIdle, dot: 'amber' },
     { key: 'STOPPED', label: () => $t.filterEnded, dot: 'gray' },
   ];
 
@@ -47,7 +56,7 @@
   function handleInputDebounce() {
     clearTimeout(debounceTimeout);
     debounceTimeout = setTimeout(() => {
-      fetchSessions(0);
+      fetchSessions(0, sessions.length > 0);
     }, 300);
   }
 
@@ -74,12 +83,12 @@
     if (key !== 'custom') fetchSessions(0);
   }
 
-  function toDateStr(d: Date) { return d.toISOString().split('T')[0]; }
   function toIsoStart(s: string) { return s ? new Date(s + 'T00:00:00').toISOString() : ''; }
   function toIsoEnd(s: string)   { return s ? new Date(s + 'T23:59:59').toISOString() : ''; }
 
   async function fetchSessions(pageToFetch = 0, silent = false) {
-    if (!silent) {
+    const showLoading = !silent && sessions.length === 0;
+    if (showLoading) {
       loading = true;
       listError = '';
     }
@@ -90,11 +99,17 @@
       if (startDate) q.append('startDate', toIsoStart(startDate));
       if (endDate) q.append('endDate', toIsoEnd(endDate));
       if (selectedProjectKey) q.append('projectKey', selectedProjectKey);
-      if (selectedStatus) q.append('status', selectedStatus);
+      if (selectedStatus === 'IDLE') {
+        q.append('status', 'ACTIVE');
+      } else if (selectedStatus) {
+        q.append('status', selectedStatus);
+      }
       q.append('page', pageToFetch.toString());
       q.append('size', '20');
       if (selectedStatus === 'ACTIVE') {
         q.append('updatedAfter', new Date(Date.now() - LIVE_WINDOW_MS).toISOString());
+        q.append('sort', 'updatedAt,desc');
+      } else if (selectedStatus === 'IDLE') {
         q.append('sort', 'updatedAt,desc');
       } else {
         q.append('sort', 'createdAt,desc');
@@ -102,22 +117,26 @@
       const res = await fetch(`/api/sessions?${q.toString()}`);
       if (res.ok) {
         const data = await res.json();
-        sessions = data.content || [];
+        let content = data.content || [];
+        if (selectedStatus === 'IDLE') {
+          content = content.filter((sess: any) => sessionActivity(sess) === 'idle');
+        }
+        sessions = content;
         page = data.pageable?.pageNumber ?? 0;
         totalPages = data.totalPages ?? 0;
         totalElements = data.totalElements ?? 0;
       } else if (!silent) {
         listError = $t.listError;
-        sessions = [];
+        if (sessions.length === 0) sessions = [];
       }
     } catch (e) {
       console.error(e);
       if (!silent) {
         listError = $t.listError;
-        sessions = [];
+        if (sessions.length === 0) sessions = [];
       }
     } finally {
-      if (!silent) loading = false;
+      if (showLoading) loading = false;
     }
   }
 
@@ -151,29 +170,33 @@
            }
 
 
-           // Always surface new sessions at the top on first page.
-           // This is the key for "실시간 붙기" (real-time attach).
-           if (page === 0 && selectedStatus !== 'STOPPED') {
-            const idx = sessions.findIndex((s: any) => s.sessionId === msg.sessionId);
-            const now = new Date().toISOString();
-            const fresh = {
-              sessionId: msg.sessionId,
-              projectKey: msg.projectKey || '',
-              projectName: null,
-              userId: msg.userId || '',
-              status: 'ACTIVE',
-              tags: msg.tags || {},
-              createdAt: msg.createdAt || now,
-              updatedAt: now,
-              endAt: null
-            };
-            if (idx >= 0) {
-              sessions[idx] = fresh;
-            } else {
-              sessions = [fresh, ...sessions].slice(0, 60);
-              totalElements = (totalElements || 0) + 1;
-            }
-          }
+            if (page === 0 && selectedStatus !== 'STOPPED' && selectedStatus !== 'IDLE') {
+             if (selectedProjectKey && msg.projectKey && msg.projectKey !== selectedProjectKey) return;
+             if (queryStr) {
+               const q = queryStr.toLowerCase();
+               const blob = `${msg.userId || ''} ${msg.projectKey || ''} ${msg.source || ''}`.toLowerCase();
+               if (!blob.includes(q)) return;
+             }
+             const idx = sessions.findIndex((s: any) => s.sessionId === msg.sessionId);
+             const now = new Date().toISOString();
+             const fresh = {
+               sessionId: msg.sessionId,
+               projectKey: msg.projectKey || '',
+               projectName: null,
+               userId: msg.userId || '',
+               status: 'ACTIVE',
+               tags: msg.tags || {},
+               createdAt: msg.createdAt || now,
+               updatedAt: now,
+               endAt: null
+             };
+             if (idx >= 0) {
+               sessions[idx] = fresh;
+             } else {
+               sessions = [fresh, ...sessions].slice(0, 20);
+               totalElements = (totalElements || 0) + 1;
+             }
+           }
         } catch (err) {
           // ignore bad payload
         }
@@ -292,7 +315,7 @@
   }
 
   function anyFilterActive(): boolean {
-    return !!(queryStr || selectedStatus || selectedProjectKey || source || activePreset !== 'all');
+    return !!(queryStr || selectedStatus || selectedProjectKey || source || activePreset !== 'today');
   }
 
   function clearFilters() {
@@ -300,11 +323,36 @@
     source = '';
     selectedProjectKey = '';
     selectedStatus = '';
-    activePreset = 'all';
-    startDate = '';
-    endDate = '';
+    const today = toDateStr(new Date());
+    activePreset = 'today';
+    startDate = today;
+    endDate = today;
     filtersOpen = false;
     fetchSessions(0);
+  }
+
+  function maskYmd(raw: string): string {
+    const d = raw.replace(/\D/g, '').slice(0, 8);
+    if (d.length <= 4) return d;
+    if (d.length <= 6) return `${d.slice(0,4)}-${d.slice(4)}`;
+    return `${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6)}`;
+  }
+
+  function isYmd(s: string): boolean {
+    return /^\d{4}-\d{2}-\d{2}$/.test(s);
+  }
+
+  function maybeFetchCustomDates() {
+    activePreset = 'custom';
+    if (isYmd(startDate) && isYmd(endDate)) fetchSessions(0);
+  }
+
+  function handleYmdInput(which: 'start' | 'end', e: Event) {
+    const v = maskYmd((e.currentTarget as HTMLInputElement).value);
+    if (which === 'start') startDate = v;
+    else endDate = v;
+    if (v.length === 10) maybeFetchCustomDates();
+    else activePreset = 'custom';
   }
 </script>
 
@@ -316,7 +364,9 @@
 
   <div class="search-wrap">
     <div class="search-input-wrap-clean">
+      <label class="visually-hidden" for="session-search">{$t.searchLabel}</label>
       <input
+        id="session-search"
         class="search-input"
         placeholder={$t.searchPlaceholder}
         bind:value={queryStr}
@@ -336,6 +386,8 @@
         >
           {#if opt.dot === 'green'}
             <span class="dot-live live-pulse"></span>
+          {:else if opt.dot === 'amber'}
+            <span class="dot-idle"></span>
           {:else if opt.dot === 'gray'}
             <span class="dot-ended"></span>
           {/if}
@@ -343,6 +395,58 @@
         </button>
       {/each}
     </div>
+
+    <div class="date-chips">
+      {#each [
+        { key: 'all', label: () => $t.dateAll },
+        { key: 'today', label: () => $t.dateToday },
+        { key: 'yesterday', label: () => $t.dateYesterday },
+        { key: '7d', label: () => $t.date7d },
+        { key: '30d', label: () => $t.date30d },
+        { key: 'custom', label: () => $t.dateCustom },
+      ] as opt}
+        <button
+          type="button"
+          class="filter-chip"
+          class:active={activePreset === opt.key}
+          onclick={() => applyPreset(opt.key)}
+        >{opt.label()}</button>
+      {/each}
+    </div>
+    {#if startDate && endDate}
+      <div class="date-range-caption">{$t.dateRangeCaption(startDate, endDate)}</div>
+    {/if}
+    {#if activePreset === 'custom'}
+      <div class="custom-date-box">
+        <div class="custom-date-title">{$t.dateCustomTitle}</div>
+        <div class="custom-date-row">
+          <span class="custom-date-label">{$t.dateFrom}</span>
+          <input
+            type="text"
+            class="filter-input date-ymd-input"
+            placeholder="YYYY-MM-DD"
+            inputmode="numeric"
+            value={startDate}
+            oninput={(e) => handleYmdInput('start', e)}
+            onchange={maybeFetchCustomDates}
+            onblur={maybeFetchCustomDates}
+          />
+        </div>
+        <div class="custom-date-row">
+          <span class="custom-date-label">{$t.dateTo}</span>
+          <input
+            type="text"
+            class="filter-input date-ymd-input"
+            placeholder="YYYY-MM-DD"
+            inputmode="numeric"
+            value={endDate}
+            oninput={(e) => handleYmdInput('end', e)}
+            onchange={maybeFetchCustomDates}
+            onblur={maybeFetchCustomDates}
+          />
+        </div>
+      </div>
+    {/if}
 
     <div class="filters-toggle-row">
       <button
@@ -391,48 +495,6 @@
             oninput={handleInputDebounce}
           />
         </div>
-
-        <div class="date-chips">
-          {#each [
-            { key: 'all', label: () => $t.dateAll },
-            { key: 'today', label: () => $t.dateToday },
-            { key: 'yesterday', label: () => $t.dateYesterday },
-            { key: '7d', label: () => $t.date7d },
-            { key: '30d', label: () => $t.date30d },
-            { key: 'custom', label: () => $t.dateCustom },
-          ] as opt}
-            <button
-              type="button"
-              class="filter-chip"
-              class:active={activePreset === opt.key}
-              onclick={() => applyPreset(opt.key)}
-            >{opt.label()}</button>
-          {/each}
-        </div>
-
-        {#if activePreset === 'custom'}
-          <div class="custom-date-box">
-            <div class="custom-date-title">{$t.dateCustomTitle}</div>
-            <div class="custom-date-row">
-              <span class="custom-date-label">{$t.dateFrom}</span>
-              <input
-                type="date"
-                class="filter-input"
-                bind:value={startDate}
-                onchange={() => fetchSessions(0)}
-              />
-            </div>
-            <div class="custom-date-row">
-              <span class="custom-date-label">{$t.dateTo}</span>
-              <input
-                type="date"
-                class="filter-input"
-                bind:value={endDate}
-                onchange={() => fetchSessions(0)}
-              />
-            </div>
-          </div>
-        {/if}
       </div>
     {/if}
   </div>
@@ -469,7 +531,7 @@
           onclick={() => onSelect(session)}
         >
           <div class="sc-top">
-            <span class="sc-system">{cardTitle(session)}</span>
+            <span class="sc-user">{session.userId || $t.anonymous}</span>
             <span class="sc-status-badge {st.cls}">
               {#if st.cls === 'status-live'}
                 <span class="dot-live live-pulse"></span>
@@ -477,6 +539,7 @@
               {st.label}
             </span>
           </div>
+          <span class="sc-system">{cardTitle(session)}</span>
 
           <div class="sc-tags">
             {#each sessionTags(session) as tag}

@@ -42,4 +42,10 @@ public class RateLimitService {
     public boolean allowEventAppend(String sessionId) {
         return tryConsume("events:" + sessionId, properties.getEventAppendPerMinute());
     }
+
+    public boolean allowLogin(String username, String ip) {
+        String user = username == null ? "" : username;
+        String addr = ip == null ? "" : ip;
+        return tryConsume("login:" + user + ":" + addr, 10);
+    }
 }

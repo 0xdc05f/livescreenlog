@@ -1,15 +1,24 @@
 <script lang="ts">
   import { t } from '../i18n';
 
-  let { projects = [], onClose = undefined } = $props();
+  let { projects = [], canManage = false, onClose = undefined } = $props();
 
   let copied = $state<string | null>(null);
   let selectedProjectId = $state<number | string>('');
+  let snippetTab = $state<'html' | 'npm' | 'vue' | 'react'>('html');
 
   let selectedProject = $derived(
     projects.find((p: any) => String(p.id) === String(selectedProjectId)) ?? null
   );
-  let apiKey = $derived(selectedProject?.apiKey || 'YOUR_API_KEY');
+  let displayApiKey = $derived(selectedProject?.apiKey || 'YOUR_API_KEY');
+  let keyMasked = $derived(!canManage || String(displayApiKey).includes('•'));
+  let apiKey = $derived(keyMasked ? 'YOUR_API_KEY' : displayApiKey);
+
+  $effect(() => {
+    if ((selectedProjectId === '' || selectedProjectId == null) && projects.length) {
+      selectedProjectId = projects[0].id;
+    }
+  });
 
   async function copy(text: string, key: string) {
     try {
@@ -38,7 +47,7 @@
       escaped = escaped.replace(/(&lt;\/?script.*?&gt;)/g, '<span class="hl-tag">$1</span>');
       const keywords = /\b(const|let|var|function|return|new|await|async|import|export|from|typeof|void|true|false|null|undefined)\b/g;
       escaped = escaped.replace(keywords, '<span class="hl-kw">$1</span>');
-      const builtins = /\b(fetch|window|document|navigator|JSON|LiveScreenLog)\b/g;
+      const builtins = /\b(fetch|window|document|navigator|JSON|LiveScreenLog|onMounted|useEffect)\b/g;
       escaped = escaped.replace(builtins, '<span class="hl-builtin">$1</span>');
       const numbers = /\b(\d+)\b/g;
       escaped = escaped.replace(numbers, '<span class="hl-num">$1</span>');
@@ -59,44 +68,79 @@
 
   let host = $derived(typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8080');
 
-  let browserSnippet = $derived(`<script src="${host}/livescreenlog.js"><\/script>
+  let htmlSnippet = $derived(`<script src="${host}/livescreenlog.js"><\/script>
 <script>
   LiveScreenLog.init({
-    endpoint: '${host}',
+    dsn: '${host}',
     apiKey: '${apiKey}',
-    id: '사번',
+    id: currentUser.id, // 로그인 사용자 ID
+    mode: 'BOTH',
+    onSessionReady: (id) => console.log('session', id),
+    onInitError: (err) => console.error(err),
   });
-  LiveScreenLog.setTags({ dept: '영업팀' });
+  LiveScreenLog.setTags({ dept: 'sales' });
 <\/script>`);
 
-  let npmSnippet = $derived(`// npm i livescreenlog
-// or: import from '${host}/livescreenlog.js'
-
-import { LiveScreenLog } from 'livescreenlog';
+  let npmSnippet = $derived(`import { LiveScreenLog } from 'livescreenlog';
 
 LiveScreenLog.init({
-  endpoint: '${host}',
+  dsn: '${host}',
   apiKey: '${apiKey}',
-  id: 'user-001',
-});
-LiveScreenLog.setTags({ role: 'admin', app: 'web' });`);
+  id: user.id,
+  integration: 'react', // or vue / browser
+});`);
 
   let vueSnippet = $derived(`import { LiveScreenLog } from 'livescreenlog';
-// or window.LiveScreenLog after <script src="${host}/livescreenlog.js">`);
+import { onMounted } from 'vue';
 
-  let apiSessionInit = `POST /api/sessions
+onMounted(() => {
+  LiveScreenLog.init({
+    dsn: '${host}',
+    apiKey: '${apiKey}',
+    id: user.id,
+    integration: 'vue',
+  });
+});`);
+
+  let reactSnippet = $derived(`import { useEffect } from 'react';
+import { LiveScreenLog } from 'livescreenlog';
+
+useEffect(() => {
+  LiveScreenLog.init({
+    dsn: '${host}',
+    apiKey: '${apiKey}',
+    id: user.id,
+    integration: 'react',
+  });
+}, [user.id]);`);
+
+  let activeSnippet = $derived(
+    snippetTab === 'npm' ? npmSnippet
+      : snippetTab === 'vue' ? vueSnippet
+      : snippetTab === 'react' ? reactSnippet
+      : htmlSnippet
+  );
+
+  let editorTabName = $derived(
+    snippetTab === 'npm' ? 'app.js'
+      : snippetTab === 'vue' ? 'App.vue'
+      : snippetTab === 'react' ? 'App.tsx'
+      : 'index.html'
+  );
+
+  let apiSessionInit = $derived(`POST /api/sessions
 Content-Type: application/json
 
 {
-  "apiKey": "YOUR_API_KEY",
+  "apiKey": "${apiKey}",
   "userId": "user001",
   "tags": { "dept": "영업팀" },
   "sdkName": "livescreenlog-browser",
-  "sdkVersion": "1.1.0",
+  "sdkVersion": "0.3.1",
   "sdkIntegration": "browser"
 }
 
-// → { sessionId, token, enabled, recordingMode }`;
+// → { sessionId, token, enabled, recordingMode }`);
 
   let apiEvents = `POST /api/events
 Content-Type: application/json
@@ -127,9 +171,27 @@ Accept: text/event-stream`);
   <div class="view-body">
     <div class="view-main">
 
+      <div class="intro-strip">
+        <p class="intro-lead">{$t.guideIntro}</p>
+        <ol class="intro-steps">
+          <li>
+            <span class="intro-n">1</span>
+            <span>{$t.guideStep0}</span>
+          </li>
+          <li>
+            <span class="intro-n">2</span>
+            <span>{$t.guideStep1}</span>
+          </li>
+          <li>
+            <span class="intro-n">3</span>
+            <span>{$t.guideIntroVerify}</span>
+          </li>
+        </ol>
+      </div>
+
       <div class="step-card">
         <div class="step-header">
-          <span class="step-num">0</span>
+          <span class="step-num">1</span>
           <div>
             <h3>{$t.guideStep0}</h3>
             <p class="step-desc">{$t.guideStep0Desc}</p>
@@ -148,35 +210,15 @@ Accept: text/event-stream`);
             <div class="key-preview">
               <span class="key-label">API Key</span>
               <code class="key-value">{selectedProject.apiKey}</code>
+              <button class="btn btn-ghost copy-btn" onclick={() => copy(String(selectedProject.apiKey), 'apikey')}>
+                {copied === 'apikey' ? $t.guideCopied : $t.guideCopy}
+              </button>
             </div>
+            {#if keyMasked}
+              <div class="key-warn">{$t.guideKeyMasked}</div>
+            {/if}
           {/if}
         {/if}
-      </div>
-
-      <div class="step-card">
-        <div class="step-header">
-          <span class="step-num">1</span>
-          <div class="step-title-row">
-            <div>
-              <h3>{$t.guideStep1}</h3>
-              <p class="step-desc">{$t.guideStep1Desc}</p>
-            </div>
-            <button class="btn btn-ghost copy-btn" onclick={() => copy(browserSnippet, 'browser')}>
-              {copied === 'browser' ? $t.guideCopied : $t.guideCopy}
-            </button>
-          </div>
-        </div>
-        <div class="editor-window">
-          <div class="editor-header">
-            <div class="window-dots">
-              <span class="dot red"></span>
-              <span class="dot yellow"></span>
-              <span class="dot green"></span>
-            </div>
-            <span class="editor-tab-name">index.html</span>
-          </div>
-          <pre class="code-block"><code>{@html highlight(browserSnippet)}</code></pre>
-        </div>
       </div>
 
       <div class="step-card">
@@ -184,13 +226,19 @@ Accept: text/event-stream`);
           <span class="step-num">2</span>
           <div class="step-title-row">
             <div>
-              <h3>{$t.guideStep1b}</h3>
-              <p class="step-desc">{$t.guideStep1bDesc}</p>
+              <h3>{$t.guideStep1}</h3>
+              <p class="step-desc">{$t.guideStep1Desc}</p>
             </div>
-            <button class="btn btn-ghost copy-btn" onclick={() => copy(npmSnippet, 'npm')}>
-              {copied === 'npm' ? $t.guideCopied : $t.guideCopy}
+            <button class="btn btn-ghost copy-btn" onclick={() => copy(activeSnippet, 'snippet')}>
+              {copied === 'snippet' ? $t.guideCopied : $t.guideCopy}
             </button>
           </div>
+        </div>
+        <div class="snippet-tabs" role="tablist">
+          <button type="button" class="tab-btn" class:active={snippetTab === 'html'} onclick={() => snippetTab = 'html'}>{$t.guideTabHtml}</button>
+          <button type="button" class="tab-btn" class:active={snippetTab === 'npm'} onclick={() => snippetTab = 'npm'}>{$t.guideTabNpm}</button>
+          <button type="button" class="tab-btn" class:active={snippetTab === 'vue'} onclick={() => snippetTab = 'vue'}>{$t.guideTabVue}</button>
+          <button type="button" class="tab-btn" class:active={snippetTab === 'react'} onclick={() => snippetTab = 'react'}>{$t.guideTabReact}</button>
         </div>
         <div class="editor-window">
           <div class="editor-header">
@@ -199,122 +247,118 @@ Accept: text/event-stream`);
               <span class="dot yellow"></span>
               <span class="dot green"></span>
             </div>
-            <span class="editor-tab-name">app.js</span>
+            <span class="editor-tab-name">{editorTabName}</span>
           </div>
-          <pre class="code-block"><code>{@html highlight(npmSnippet)}</code></pre>
+          <pre class="code-block"><code>{@html highlight(activeSnippet)}</code></pre>
         </div>
       </div>
 
+      <div class="modes-note">
+        <h3>{$t.guideModesTitle}</h3>
+        <p>{$t.guideModesDesc}</p>
+      </div>
+
+      <details class="rest-details">
+        <summary>{$t.guideRestToggle}</summary>
+        <p class="rest-desc">{$t.guideStep2Desc}</p>
+
+        <div class="step-card">
+          <div class="cc-header">
+            <div class="api-endpoint-title">
+              <span class="method post">POST</span>
+              <h4>{$t.guideApiSession}</h4>
+            </div>
+            <button class="btn btn-ghost copy-btn" onclick={() => copy(apiSessionInit, 'api-sess')}>
+              {copied === 'api-sess' ? $t.guideCopied : $t.guideCopy}
+            </button>
+          </div>
+          <p class="subtitle">{$t.guideApiSessionDesc}</p>
+          <div class="editor-window">
+            <pre class="code-block text-block"><code>{apiSessionInit}</code></pre>
+          </div>
+        </div>
+
+        <div class="step-card">
+          <div class="cc-header">
+            <div class="api-endpoint-title">
+              <span class="method post">POST</span>
+              <h4>{$t.guideApiEvents}</h4>
+            </div>
+            <button class="btn btn-ghost copy-btn" onclick={() => copy(apiEvents, 'api-ev')}>
+              {copied === 'api-ev' ? $t.guideCopied : $t.guideCopy}
+            </button>
+          </div>
+          <p class="subtitle">{$t.guideApiEventsDesc}</p>
+          <div class="editor-window">
+            <pre class="code-block text-block"><code>{apiEvents}</code></pre>
+          </div>
+        </div>
+
+        <div class="step-card">
+          <div class="cc-header">
+            <div class="api-endpoint-title">
+              <span class="method post">POST</span>
+              <h4>{$t.guideApiHeartbeat}</h4>
+            </div>
+            <button class="btn btn-ghost copy-btn" onclick={() => copy(apiHeartbeat, 'api-hb')}>
+              {copied === 'api-hb' ? $t.guideCopied : $t.guideCopy}
+            </button>
+          </div>
+          <p class="subtitle">{$t.guideApiHeartbeatDesc}</p>
+          <div class="editor-window">
+            <pre class="code-block text-block"><code>{apiHeartbeat}</code></pre>
+          </div>
+        </div>
+
+        <div class="step-card">
+          <div class="cc-header">
+            <div class="api-endpoint-title">
+              <span class="method post">POST</span>
+              <h4>{$t.guideApiStop}</h4>
+            </div>
+            <button class="btn btn-ghost copy-btn" onclick={() => copy(apiStop, 'api-stop')}>
+              {copied === 'api-stop' ? $t.guideCopied : $t.guideCopy}
+            </button>
+          </div>
+          <p class="subtitle">{$t.guideApiStopDesc}</p>
+          <div class="editor-window">
+            <pre class="code-block text-block"><code>{apiStop}</code></pre>
+          </div>
+        </div>
+
+        <div class="step-card">
+          <div class="cc-header">
+            <div class="api-endpoint-title">
+              <span class="method get">GET</span>
+              <h4>{$t.guideApiSse}</h4>
+            </div>
+            <button class="btn btn-ghost copy-btn" onclick={() => copy(apiSse, 'api-sse')}>
+              {copied === 'api-sse' ? $t.guideCopied : $t.guideCopy}
+            </button>
+          </div>
+          <p class="subtitle">{$t.guideApiSseDesc}</p>
+          <div class="editor-window">
+            <pre class="code-block text-block"><code>{apiSse}</code></pre>
+          </div>
+        </div>
+      </details>
+
+      {#if canManage}
       <div class="step-card">
         <div class="step-header">
-          <span class="step-num">3</span>
-          <div class="step-title-row">
-            <div>
-              <h3>{$t.guideStep1c}</h3>
-              <p class="step-desc">{$t.guideStep1cDesc}</p>
-            </div>
-            <button class="btn btn-ghost copy-btn" onclick={() => copy(vueSnippet, 'vue')}>
-              {copied === 'vue' ? $t.guideCopied : $t.guideCopy}
-            </button>
+          <div>
+            <h3>{$t.guideSampleTitle}</h3>
+            <p class="step-desc">{$t.guideSampleDesc}</p>
           </div>
         </div>
-        <div class="editor-window">
-          <div class="editor-header">
-            <div class="window-dots">
-              <span class="dot red"></span>
-              <span class="dot yellow"></span>
-              <span class="dot green"></span>
-            </div>
-            <span class="editor-tab-name">main.ts / App.vue</span>
-          </div>
-          <pre class="code-block"><code>{@html highlight(vueSnippet)}</code></pre>
-        </div>
+        <ol class="sample-steps">
+          <li>{$t.emptyStep1}</li>
+          <li>{$t.emptyStep2}</li>
+          <li>{$t.emptyStep3}</li>
+        </ol>
+        <a class="sample-link" href="/sample.html" target="_blank" rel="noopener">{$t.openSample}</a>
       </div>
-
-      <div class="section-intro">
-        <h3>{$t.guideStep2}</h3>
-        <p>{$t.guideStep2Desc}</p>
-      </div>
-
-      <div class="step-card">
-        <div class="cc-header">
-          <div class="api-endpoint-title">
-            <span class="method post">POST</span>
-            <h4>{$t.guideApiSession}</h4>
-          </div>
-          <button class="btn btn-ghost copy-btn" onclick={() => copy(apiSessionInit, 'api-sess')}>
-            {copied === 'api-sess' ? $t.guideCopied : $t.guideCopy}
-          </button>
-        </div>
-        <p class="subtitle">{$t.guideApiSessionDesc}</p>
-        <div class="editor-window">
-          <pre class="code-block text-block"><code>{apiSessionInit}</code></pre>
-        </div>
-      </div>
-
-      <div class="step-card">
-        <div class="cc-header">
-          <div class="api-endpoint-title">
-            <span class="method post">POST</span>
-            <h4>{$t.guideApiEvents}</h4>
-          </div>
-          <button class="btn btn-ghost copy-btn" onclick={() => copy(apiEvents, 'api-ev')}>
-            {copied === 'api-ev' ? $t.guideCopied : $t.guideCopy}
-          </button>
-        </div>
-        <p class="subtitle">{$t.guideApiEventsDesc}</p>
-        <div class="editor-window">
-          <pre class="code-block text-block"><code>{apiEvents}</code></pre>
-        </div>
-      </div>
-
-      <div class="step-card">
-        <div class="cc-header">
-          <div class="api-endpoint-title">
-            <span class="method post">POST</span>
-            <h4>{$t.guideApiHeartbeat}</h4>
-          </div>
-          <button class="btn btn-ghost copy-btn" onclick={() => copy(apiHeartbeat, 'api-hb')}>
-            {copied === 'api-hb' ? $t.guideCopied : $t.guideCopy}
-          </button>
-        </div>
-        <p class="subtitle">{$t.guideApiHeartbeatDesc}</p>
-        <div class="editor-window">
-          <pre class="code-block text-block"><code>{apiHeartbeat}</code></pre>
-        </div>
-      </div>
-
-      <div class="step-card">
-        <div class="cc-header">
-          <div class="api-endpoint-title">
-            <span class="method post">POST</span>
-            <h4>{$t.guideApiStop}</h4>
-          </div>
-          <button class="btn btn-ghost copy-btn" onclick={() => copy(apiStop, 'api-stop')}>
-            {copied === 'api-stop' ? $t.guideCopied : $t.guideCopy}
-          </button>
-        </div>
-        <p class="subtitle">{$t.guideApiStopDesc}</p>
-        <div class="editor-window">
-          <pre class="code-block text-block"><code>{apiStop}</code></pre>
-        </div>
-      </div>
-
-      <div class="step-card">
-        <div class="cc-header">
-          <div class="api-endpoint-title">
-            <span class="method get">GET</span>
-            <h4>{$t.guideApiSse}</h4>
-          </div>
-          <button class="btn btn-ghost copy-btn" onclick={() => copy(apiSse, 'api-sse')}>
-            {copied === 'api-sse' ? $t.guideCopied : $t.guideCopy}
-          </button>
-        </div>
-        <p class="subtitle">{$t.guideApiSseDesc}</p>
-        <div class="editor-window">
-          <pre class="code-block text-block"><code>{apiSse}</code></pre>
-        </div>
-      </div>
+      {/if}
 
       <div class="step-card confirm-card">
         <div class="step-header">
@@ -374,6 +418,82 @@ Accept: text/event-stream`);
     max-width: 920px;
   }
 
+  .intro-strip {
+    background: var(--accent-dim);
+    border: 1px solid var(--accent-border);
+    border-radius: 10px;
+    padding: 1rem 1.2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .intro-lead {
+    margin: 0;
+    font-size: 0.82rem;
+    color: var(--text);
+    line-height: 1.45;
+  }
+
+  .intro-steps {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem 1.1rem;
+  }
+
+  .intro-steps li {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: 0.78rem;
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  .sample-steps {
+    list-style: decimal;
+    margin: 0;
+    padding: 0 0 0 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .sample-steps li {
+    font-size: 0.78rem;
+    color: var(--text);
+    line-height: 1.4;
+  }
+
+  .sample-link {
+    align-self: flex-start;
+    color: var(--accent-hover);
+    font-weight: 700;
+    font-size: 0.78rem;
+    text-decoration: none;
+  }
+
+  .sample-link:hover {
+    text-decoration: underline;
+  }
+
+  .intro-n {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    border-radius: 6px;
+    background: var(--accent-dim);
+    color: var(--accent);
+    font-size: 0.68rem;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
   .step-card {
     background: var(--panel);
     border: 1px solid var(--border);
@@ -385,8 +505,8 @@ Accept: text/event-stream`);
   }
 
   .confirm-card {
-    background: rgba(99, 102, 241, 0.06);
-    border-color: rgba(99, 102, 241, 0.22);
+    background: var(--accent-dim);
+    border-color: var(--accent);
   }
 
   .step-header {
@@ -408,7 +528,7 @@ Accept: text/event-stream`);
     width: 28px;
     height: 28px;
     border-radius: 8px;
-    background: rgba(99, 102, 241, 0.15);
+    background: var(--accent-dim);
     color: var(--accent);
     font-size: 0.75rem;
     font-weight: 800;
@@ -418,12 +538,12 @@ Accept: text/event-stream`);
   }
 
   .step-num.check {
-    background: rgba(16, 185, 129, 0.15);
-    color: #10b981;
+    background: var(--success-dim);
+    color: var(--success);
   }
 
   .step-header h3,
-  .section-intro h3 {
+  .modes-note h3 {
     margin: 0 0 0.25rem;
     font-size: 0.9rem;
     font-weight: 700;
@@ -431,17 +551,17 @@ Accept: text/event-stream`);
   }
 
   .step-desc,
-  .section-intro p,
-  .subtitle {
+  .modes-note p,
+  .subtitle,
+  .rest-desc {
     margin: 0;
     font-size: 0.75rem;
     color: var(--muted);
     line-height: 1.45;
   }
 
-  .section-intro {
-    margin-top: 0.5rem;
-    padding-top: 0.5rem;
+  .modes-note {
+    padding: 0.15rem 0.15rem 0.35rem;
   }
 
   .project-select {
@@ -497,6 +617,90 @@ Accept: text/event-stream`);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    flex: 1;
+  }
+
+  .key-warn {
+    font-size: 0.75rem;
+    color: var(--warning);
+    background: var(--warning-dim);
+    border: 1px solid var(--warning);
+    border-radius: 7px;
+    padding: 0.55rem 0.75rem;
+    line-height: 1.4;
+  }
+
+  .snippet-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+
+  .tab-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 0.4rem 0.75rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+
+  .tab-btn:hover {
+    color: var(--text);
+    border-color: var(--accent-border);
+  }
+
+  .tab-btn.active {
+    background: var(--accent-dim);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .rest-details {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.85rem 1.15rem 1.05rem;
+  }
+
+  .rest-details[open] {
+    gap: 0.85rem;
+  }
+
+  .rest-details summary {
+    cursor: pointer;
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--text);
+    list-style: none;
+    padding: 0.2rem 0;
+  }
+
+  .rest-details summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .rest-details summary::before {
+    content: '▸ ';
+    color: var(--accent);
+  }
+
+  .rest-details[open] summary::before {
+    content: '▾ ';
+  }
+
+  .rest-details .rest-desc {
+    margin: 0.15rem 0 0.35rem;
+  }
+
+  .rest-details .step-card {
+    background: var(--surface);
   }
 
   .cc-header {
@@ -528,8 +732,8 @@ Accept: text/event-stream`);
     font-family: monospace;
   }
 
-  .method.post { background: #10b981; }
-  .method.get { background: #3b82f6; }
+  .method.post { background: var(--success); }
+  .method.get { background: var(--accent); }
 
   .copy-btn {
     flex-shrink: 0;

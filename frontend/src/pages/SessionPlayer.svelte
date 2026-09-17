@@ -11,6 +11,9 @@
   let replayer: any = null;
   let eventSource: EventSource | null = null;
   let dialogOverlayTimer: ReturnType<typeof setTimeout> | null = null;
+  let liveRetryTimer: ReturnType<typeof setTimeout> | null = null;
+  let liveRetryCount = 0;
+  let playerDestroyed = false;
 
   let loading = $state(true);
   let errorKey = $state('');
@@ -96,6 +99,10 @@
         }
       } catch {}
     }
+    if (!isPlaying && !isLive) {
+      stopRaf();
+      return;
+    }
     rafId = requestAnimationFrame(tick);
   }
 
@@ -106,6 +113,12 @@
     }
   }
 
+  function startRaf() {
+    if (rafId === null) {
+      rafId = requestAnimationFrame(tick);
+    }
+  }
+
   // ── Controls ────────────────────────────────────────────────────
   function togglePlay() {
     if (!replayer) return;
@@ -113,6 +126,7 @@
       replayer.pause();
       isPlaying = false;
       if (isLive) followLiveEdge = false;
+      stopRaf();
     } else {
       refreshMetaDuration();
       let startFrom = currentTime;
@@ -128,6 +142,7 @@
       }
       replayer.play(startFrom);
       isPlaying = true;
+      startRaf();
     }
   }
 
@@ -165,6 +180,7 @@
     } catch {}
     replayer.play(target);
     isPlaying = true;
+    startRaf();
 
     seekTimeoutId = setTimeout(() => {
       isSeeking = false;
@@ -334,7 +350,7 @@
 
     const title = document.createElement('div');
     title.className = 'sl-replay-dialog-title';
-    title.textContent = (hostTitle || 'This page') + ' says';
+    title.textContent = $t.dialogSays(hostTitle || $t.thisPage);
 
     const body = document.createElement('div');
     body.className = 'sl-replay-dialog-body';
@@ -357,7 +373,7 @@
     if (tag === 'CONFIRM' || tag === 'PROMPT') {
       const cancel = document.createElement('span');
       cancel.className = 'sl-replay-dialog-btn sl-replay-dialog-btn-secondary';
-      cancel.textContent = 'Cancel';
+      cancel.textContent = $t.dialogCancel;
       if (typeof result === 'boolean' && result === false) {
         cancel.classList.add('sl-replay-dialog-btn-active');
       }
@@ -366,7 +382,7 @@
 
     const ok = document.createElement('span');
     ok.className = 'sl-replay-dialog-btn sl-replay-dialog-btn-primary';
-    ok.textContent = 'OK';
+    ok.textContent = $t.dialogOk;
     if (result === true || (tag === 'ALERT') || (tag === 'PROMPT' && result != null && result !== false)) {
       ok.classList.add('sl-replay-dialog-btn-active');
     }
@@ -479,43 +495,7 @@
         }
         isPlaying = true;
 
-        eventSource = new EventSource(`/api/sessions/${session.sessionId}/live`);
-        eventSource.addEventListener('message', (ev) => {
-          try {
-            const parsed = JSON.parse(ev.data);
-            const batch = Array.isArray(parsed) ? parsed : [parsed];
-            for (const evt of batch) {
-              replayer.addEvent(evt);
-              handleCustomEvent(evt);
-              if (!recordingStartTs && typeof evt?.timestamp === 'number' && evt.timestamp > 0) {
-                recordingStartTs = evt.timestamp;
-              }
-            }
-            const prevTotal = totalTime;
-            refreshMetaDuration();
-            liveDisconnected = false;
-            if (followLiveEdge) {
-              currentTime = totalTime;
-            }
-
-            // Keep playback attached to the growing timeline
-            if (followLiveEdge && isPlaying && totalTime > prevTotal) {
-              try {
-                const t = readReplayerTime();
-                if (t < totalTime - LIVE_EDGE_MS) {
-                  replayer.play(Math.max(0, totalTime - 30));
-                }
-              } catch {}
-            }
-          } catch {}
-        });
-        eventSource.onerror = () => {
-          liveDisconnected = true;
-          if (eventSource) {
-            eventSource.close();
-            eventSource = null;
-          }
-        };
+        attachLiveSource();
       }
 
     } catch (e) {
@@ -525,15 +505,68 @@
     }
   });
 
+  function attachLiveSource() {
+    if (playerDestroyed || !session?.sessionId || !replayer) return;
+    if (eventSource) {
+      eventSource.close();
+      eventSource = null;
+    }
+    eventSource = new EventSource(`/api/sessions/${session.sessionId}/live`);
+    eventSource.addEventListener('message', (ev) => {
+      try {
+        const parsed = JSON.parse(ev.data);
+        const batch = Array.isArray(parsed) ? parsed : [parsed];
+        for (const evt of batch) {
+          replayer.addEvent(evt);
+          handleCustomEvent(evt);
+          if (!recordingStartTs && typeof evt?.timestamp === 'number' && evt.timestamp > 0) {
+            recordingStartTs = evt.timestamp;
+          }
+        }
+        const prevTotal = totalTime;
+        refreshMetaDuration();
+        liveDisconnected = false;
+        liveRetryCount = 0;
+        if (followLiveEdge) {
+          currentTime = totalTime;
+        }
+        if (followLiveEdge && isPlaying && totalTime > prevTotal) {
+          try {
+            const t = readReplayerTime();
+            if (t < totalTime - LIVE_EDGE_MS) {
+              replayer.play(Math.max(0, totalTime - 30));
+            }
+          } catch {}
+        }
+      } catch {}
+    });
+    eventSource.onerror = () => {
+      liveDisconnected = true;
+      if (eventSource) {
+        eventSource.close();
+        eventSource = null;
+      }
+      if (playerDestroyed) return;
+      const delay = Math.min(1000 * Math.pow(1.6, liveRetryCount), 15000);
+      liveRetryCount += 1;
+      if (liveRetryTimer) clearTimeout(liveRetryTimer);
+      liveRetryTimer = setTimeout(() => attachLiveSource(), delay);
+    };
+  }
+
   onDestroy(() => {
+    playerDestroyed = true;
     window.removeEventListener('keydown', handleSpaceKey);
     stopRaf();
     if (seekTimeoutId) clearTimeout(seekTimeoutId);
     if (dialogOverlayTimer) clearTimeout(dialogOverlayTimer);
+    if (liveRetryTimer) clearTimeout(liveRetryTimer);
     if (eventSource) eventSource.close();
     try {
-      replayer?.pause();
-    } catch (e) {}
+      replayer?.destroy();
+    } catch {}
+    replayer = null;
+    stopRaf();
   });
 
   let progressPct = $derived(
@@ -586,7 +619,7 @@
       class="progress-bar-wrap"
       class:dragging={isDragging}
       role="slider"
-      aria-label="Playback position"
+      aria-label={$t.playbackPosition}
       aria-valuenow={Math.floor(currentTime)}
       aria-valuemin={0}
       aria-valuemax={Math.floor(totalTime)}
@@ -608,10 +641,10 @@
     <div class="controls-left">
 
       <!-- Back 10 s -->
-      <button class="ctrl-btn" title={$t.back10} onclick={skipBack}>-10s</button>
+      <button class="ctrl-btn" title={$t.back10} aria-label={$t.back10} onclick={skipBack}>-10s</button>
 
       <!-- Play / Pause -->
-      <button class="play-btn-clean" onclick={togglePlay} title={isPlaying ? $t.playing : $t.paused}>
+      <button class="play-btn-clean" onclick={togglePlay} title={isPlaying ? $t.playing : $t.paused} aria-label={isPlaying ? $t.playing : $t.paused}>
         {#if isPlaying}
           <svg viewBox="0 0 24 24" fill="currentColor" class="icon-play-ctrl" style="width:14px;height:14px;margin-top:1px"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
         {:else}
@@ -620,12 +653,12 @@
       </button>
 
       <!-- Forward 10 s -->
-      <button class="ctrl-btn" title={$t.fwd10} onclick={skipFwd}>+10s</button>
+      <button class="ctrl-btn" title={$t.fwd10} aria-label={$t.fwd10} onclick={skipFwd}>+10s</button>
 
       <!-- Speed -->
       <div class="speed-btns">
         {#each [1, 2, 4] as s}
-          <button class="speed-btn" class:active={speed === s} onclick={() => setSpeed(s)}>{s}x</button>
+          <button class="speed-btn" class:active={speed === s} aria-pressed={speed === s} aria-label={`${s}x`} onclick={() => setSpeed(s)}>{s}x</button>
         {/each}
       </div>
 
@@ -645,10 +678,10 @@
 
     <div class="controls-right">
       {#if isLive}
-        <span class="live-chip" class:disconnected={liveDisconnected}>LIVE</span>
+        <span class="live-chip" class:disconnected={liveDisconnected}>{$t.statusLive}</span>
       {/if}
       <!-- Fullscreen -->
-      <button class="ctrl-btn btn-fullscreen-clean" title={$t.fullscreen} onclick={toggleFullscreen}>
+      <button class="ctrl-btn btn-fullscreen-clean" title={$t.fullscreen} aria-label={$t.fullscreen} onclick={toggleFullscreen}>
         {#if isFullscreen}
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-fs" style="width:14px;height:14px"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7"></path></svg>
         {:else}

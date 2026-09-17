@@ -3,8 +3,9 @@
   import { buildSessionTags, formatSdkBadge, parseUserAgent } from '../lib/uaParse';
   import { formatDateTime, formatRange, formatDurationMs } from '../lib/dateFormat';
   import DeviceIcons from './DeviceIcons.svelte';
+  import { sessionActivity } from '../lib/sessionLive';
 
-  let { session, events, onSeekTo, onForceStop, onDeleteSession, loading = false } = $props();
+  let { session, events, onSeekTo, onForceStop, onDeleteSession, loading = false, canManage = false } = $props();
 
   let activeTab = $state('activity');
   let activityFilter = $state('clicks');
@@ -13,9 +14,18 @@
 
   const ACTIVITY_CAP = 500;
 
-  let parsedEvents = $derived.by(() => {
-    if (!events || events.length === 0) return [];
-    return events.map((e: any, idx: number) => {
+  let activity = $derived.by(() => {
+    const items: any[] = [];
+    let clickCount = 0;
+    let inputCount = 0;
+    let pageCount = 0;
+    let scrollCount = 0;
+    let alertCount = 0;
+    if (!events || events.length === 0) {
+      return { items, clickCount, inputCount, pageCount, scrollCount, alertCount };
+    }
+    for (let idx = 0; idx < events.length; idx++) {
+      const e = events[idx];
       let parsed: any = {};
       try {
         parsed = typeof e.eventData === 'string' ? JSON.parse(e.eventData) : e.eventData;
@@ -90,9 +100,23 @@
         default: name = `Type ${parsed.type}`;
       }
 
-      return { idx, ts, category, tagLabel, iconClass, name, desc, parsed };
-    });
+      if (category === 'click') clickCount++;
+      else if (category === 'input') inputCount++;
+      else if (category === 'nav' || category === 'snapshot') pageCount++;
+      else if (category === 'scroll') scrollCount++;
+      else if (category === 'alert' || category === 'log') alertCount++;
+
+      items.push({ idx, ts, category, tagLabel, iconClass, name, desc, parsed });
+    }
+    return { items, clickCount, inputCount, pageCount, scrollCount, alertCount };
   });
+
+  let parsedEvents = $derived(activity.items);
+  let clickCount = $derived(activity.clickCount);
+  let inputCount = $derived(activity.inputCount);
+  let pageCount = $derived(activity.pageCount);
+  let scrollCount = $derived(activity.scrollCount);
+  let alertCount = $derived(activity.alertCount);
 
   let filteredEvents = $derived.by(() => {
     if (activityFilter === 'all') return parsedEvents;
@@ -130,18 +154,10 @@
     } catch {}
   }
 
-  let clickCount  = $derived(parsedEvents.filter((e: any) => e.category === 'click').length);
-  let inputCount  = $derived(parsedEvents.filter((e: any) => e.category === 'input').length);
-  let pageCount   = $derived(parsedEvents.filter((e: any) => e.category === 'nav' || e.category === 'snapshot').length);
-  let scrollCount = $derived(parsedEvents.filter((e: any) => e.category === 'scroll').length);
-  let alertCount  = $derived(parsedEvents.filter((e: any) => e.category === 'alert' || e.category === 'log').length);
-
   function sessionStatusLabel(s: any): string {
-    if (!s) return '';
-    if (s.status === 'STOPPED') return $t.statusEnded;
-    const diffMin = (Date.now() - new Date(s.updatedAt).getTime()) / 60000;
-    if (diffMin < 2)  return $t.statusLive;
-    if (diffMin < 30) return $t.statusIdle;
+    const activity = sessionActivity(s);
+    if (activity === 'live') return $t.statusLive;
+    if (activity === 'idle') return $t.statusIdle;
     return $t.statusEnded;
   }
 
@@ -198,7 +214,7 @@
       {$t.filterScrolls} <span class="badge-count">{scrollCount}</span>
     </button>
     <button class="filter-chip" class:active={activityFilter === 'alerts'} onclick={() => activityFilter = 'alerts'}>
-      Alerts <span class="badge-count">{alertCount}</span>
+      {$t.filterAlerts} <span class="badge-count">{alertCount}</span>
     </button>
   </div>
 
@@ -400,10 +416,12 @@
           </button>
         </div>
       </div>
-      {#if session?.status !== 'STOPPED'}
+      {#if canManage && session?.status !== 'STOPPED'}
         <button class="btn btn-secondary" onclick={onForceStop}>{$t.forceStop}</button>
       {/if}
+      {#if canManage}
       <button class="btn btn-ghost" onclick={() => { if (confirm($t.confirmDeleteSession)) onDeleteSession?.(); }}>{$t.deleteSession}</button>
+      {/if}
     {:else}
       <div class="empty-state-clean empty-state-spaced">
         <p>{$t.noSessionMeta}</p>

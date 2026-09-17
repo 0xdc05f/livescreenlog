@@ -359,8 +359,14 @@
                     </div>
                   </td>
                   <td>
-                    <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-                    <div class="p-key-cell" onclick={() => copyKey(project.apiKey)} title={$t.projectCopy}>
+                    <div
+                      class="p-key-cell"
+                      role="button"
+                      tabindex="0"
+                      title={$t.projectCopy}
+                      onclick={() => copyKey(project.apiKey)}
+                      onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); copyKey(project.apiKey); } }}
+                    >
                       <code class="p-table-key">{project.apiKey}</code>
                       <button type="button" class="btn-copy-icon" class:copied={copiedKey === project.apiKey}>
                         {copiedKey === project.apiKey ? $t.projectCopied : $t.projectCopy}
@@ -417,7 +423,7 @@
 <!-- Unified Create/Edit Modal -->
 {#if showModal}
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-  <div class="modal-overlay" onclick={() => showModal = false}>
+  <div class="modal-overlay" role="presentation" onclick={() => showModal = false}>
     <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
     <div class="modal-panel" onclick={(e) => e.stopPropagation()}>
       <div class="modal-header">
