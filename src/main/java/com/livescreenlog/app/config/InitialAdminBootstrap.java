@@ -9,6 +9,7 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
+import java.security.SecureRandom;
 import java.util.List;
 
 /**
@@ -36,42 +37,43 @@ public class InitialAdminBootstrap implements ApplicationRunner {
     private static final List<String> WEAK_PASSWORDS = List.of(
             "admin", "password", "123456", "admin123", "change-me", "changeme", "default"
     );
+    private static final String PASSWORD_CHARSET =
+            "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#%";
+    private static final int GENERATED_PASSWORD_LENGTH = 20;
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     @Override
     public void run(ApplicationArguments args) {
         long userCount = userRepository.count();
-        if (userCount == 0) {
+        if (userCount > 0) {
+            log.info("Admin users already exist ({}). Env dashboard password is ignored.", userCount);
+        } else {
             String username = properties.getDashboardUsername();
             String rawPassword = properties.getDashboardPassword();
 
             if (username == null || username.isBlank()) {
                 username = "admin";
             }
-            if (rawPassword == null || rawPassword.isBlank()) {
-                log.warn("No initial admin password provided via livescreenlog.security.dashboard-password. " +
-                        "Skipping automatic super-admin creation. Set a strong password to bootstrap the first admin.");
-                // continue to allow --create-admin even on first run
-            } else {
-                if (isWeak(rawPassword)) {
-                    log.warn("The provided initial admin password looks weak. Please change it immediately after first login.");
-                }
-
-                String hash = passwordEncoder.encode(rawPassword);
-
-                User admin = User.builder()
-                        .username(username)
-                        .passwordHash(hash)
-                        .role("SUPER_ADMIN")
-                        .enabled(true)
-                        .build();
-
-                userRepository.save(admin);
-
-                log.info("================================================================");
-                log.info("Initial SUPER_ADMIN created: username='{}'", username);
-                log.info("Please change this password as soon as the admin UI supports it.");
-                log.info("================================================================");
+            if (rawPassword == null || rawPassword.isBlank() || isWeak(rawPassword)) {
+                rawPassword = generatePassword();
             }
+
+            String hash = passwordEncoder.encode(rawPassword);
+
+            User admin = User.builder()
+                    .username(username)
+                    .passwordHash(hash)
+                    .role("SUPER_ADMIN")
+                    .enabled(true)
+                    .build();
+
+            userRepository.save(admin);
+
+            log.warn("################################################################");
+            log.warn("# FIRST BOOT — copy this password now. It is not shown again.");
+            log.warn("# username : {}", username);
+            log.warn("# password : {}", rawPassword);
+            log.warn("################################################################");
         }
 
         // CLI / env for additional admin (or even first if properties skipped), create if username not exists
@@ -128,6 +130,18 @@ public class InitialAdminBootstrap implements ApplicationRunner {
             userRepository.save(admin);
             log.info("Additional admin created via CLI: username='{}' role='{}'", username, role);
         }
+    }
+
+    private String generatePassword() {
+        String generated;
+        do {
+            StringBuilder sb = new StringBuilder(GENERATED_PASSWORD_LENGTH);
+            for (int i = 0; i < GENERATED_PASSWORD_LENGTH; i++) {
+                sb.append(PASSWORD_CHARSET.charAt(SECURE_RANDOM.nextInt(PASSWORD_CHARSET.length())));
+            }
+            generated = sb.toString();
+        } while (isWeak(generated));
+        return generated;
     }
 
     private boolean isWeak(String pwd) {

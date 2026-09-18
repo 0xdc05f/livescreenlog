@@ -2,6 +2,7 @@
 #   ./gradlew bootJar
 # Then from repo root:
 #   docker build -f deploy/Dockerfile -t livescreenlog:local .
+# Build: docker build --platform linux/amd64 -f deploy/Dockerfile ...
 
 FROM eclipse-temurin:25-jre-alpine
 

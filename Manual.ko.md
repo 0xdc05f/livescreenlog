@@ -213,6 +213,7 @@ URL 예: `/?view=settings&tab=stats`. 브라우저 뒤로가기는 설정↔리�
 **인증**
 
 - 기본 개발 계정: `admin` / `admin-password-need-to-change` (`users` 테이블이 비어 있을 때 부트스트랩). 설정 → 내 계정에서 변경하세요.
+- 최초 SUPER_ADMIN 비밀번호는 서버 로그 `FIRST BOOT` 배너에 한 번만 출력된다.
 - `POST /api/sessions` 는 permitAll (projectKey는 서버에서 검증). GET 세션·대시보드는 ADMIN.
 - HMAC은 `/api/events`, `/api/heartbeat`, `/api/stop`만 적용되며 **요청 스코프**입니다 (대시보드 JSESSIONID를 덮지 않음). SDK fetch는 `credentials: 'omit'`.
 - 대시보드 쿠키: 8시간, HttpOnly, SameSite=Lax.
@@ -400,6 +401,16 @@ Base URL = 서버 origin (예: `https://lsl.example.com`).
 | 라이브 테일 무응답 | Redis/Valkey 실행 중, 세션 ACTIVE 상태 |
 | Mode B 단말 없음 | 클라이언트가 init + push connect 호출, 동일 앱 인스턴스 |
 | 구 SessionLens 클라이언트 | `livescreenlog.js` / 새 헤더명으로 마이그레이션 |
+| docker load `package/json` 없음 | `.tgz`는 npm. `*-image.tar.gz`만 load |
+| 이미지가 서버에서 exec format error | linux/amd64로 다시 받은 tar인지. Mac arm64 이미지 아님 |
+| `No setter found for property: dashboard-enabled` 또는 `allowed-capture-origins` | 0.3.2는 `LIVESCREENLOG_SECURITY_DASHBOARD_*`, `LIVESCREENLOG_SECURITY_HMAC_SECRET`, `LIVESCREENLOG_SECURITY_ALLOWED_CAPTURE_ORIGINS` 사용. `SECURITY_` 없는 동일 이름은 기동 실패 |
+| 프로필이 `dev` | 개발 서버도 `SPRING_PROFILES_ACTIVE=prod`. compose environment와 env 파일에서 `dev` 제거 |
+| UnknownHostException: postgres | compose 서비스명 사용 (`shared-db`, `valkey`). 같은 `networks:` (예: devops-net). `docker exec 앱 getent hosts 서비스명` |
+| DB 포트 | 같은 네트워크면 **5432**. 호스트 매핑 15432는 컨테이너 간 통신에 쓰지 않음 |
+| 포트 8090인데 톰캣 8080 | `8090:8080` 이 맞음. `8090:8090`이면 `SERVER_PORT=8090` 필요. CORS origin도 브라우저 포트 |
+| FILE appender / 로그 파일 없음 | `/data/livescreenlog/logs` 를 컨테이너 유저가 쓰게. `user: "uid:gid"` 또는 `chown 100:100` |
+| env 비밀번호로 로그인 안 됨 | 최초 기동에 users가 비어 있을 때만 생성. 이후 env는 무시. `docker logs`에서 FIRST BOOT 배너 확인. 이미 있으면 `--create-admin=아이디:비번:SUPER_ADMIN` |
+| CORS | 브라우저 주소 origin (호스트+포트). `*` 는 prod 금지 |
 
 ---
 

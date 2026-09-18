@@ -172,3 +172,9 @@ airgap/files/
 
 .playwright-mcp/
 current-dashboard.png
+internal-0.3.2/images/
+internal-0.3.2/files/
+internal-0.3.2/docker-images/
+internal-0.3.3/images/
+internal-0.3.3/files/
+internal-0.3.3/docker-images/

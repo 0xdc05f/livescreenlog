@@ -8,7 +8,7 @@ import org.springframework.context.annotation.Configuration;
 import java.util.List;
 
 @Configuration
-@ConfigurationProperties(prefix = "livescreenlog")
+@ConfigurationProperties(prefix = "livescreenlog", ignoreInvalidFields = true)
 @Getter
 @Setter
 public class LiveScreenLogProperties {

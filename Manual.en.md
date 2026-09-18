@@ -213,6 +213,7 @@ URLs like `/?view=settings&tab=stats`. Browser Back switches settings↔replay. 
 **Auth**
 
 - Default dev account: `admin` / `admin-password-need-to-change` (bootstrapped when `users` table empty). Change in Settings → account.
+- The first SUPER_ADMIN password is printed once in the server log `FIRST BOOT` banner.
 - `POST /api/sessions` permitAll (projectKey validated server-side). GET sessions/dashboard require ADMIN.
 - HMAC only for `/api/events`, `/api/heartbeat`, `/api/stop` and is **request-scoped** (does not overwrite dashboard JSESSIONID). SDK uses `credentials: 'omit'`.
 - Dashboard cookie: 8h, HttpOnly, SameSite=Lax.
@@ -400,6 +401,16 @@ Report vulnerabilities: [SECURITY.md](SECURITY.md)
 | Live tail silent | Redis/Valkey up; session still ACTIVE |
 | Mode B no terminals | Client called init + push connect; same app instance |
 | Old SessionLens clients | Migrate to `livescreenlog.js` / new header names |
+| docker load missing `package/json` | `.tgz` is npm. Load only `*-image.tar.gz` |
+| Image fails with exec format error | Confirm the tar is linux/amd64. Not a Mac arm64 image |
+| `No setter found for property: dashboard-enabled` or `allowed-capture-origins` | 0.3.2 uses `LIVESCREENLOG_SECURITY_DASHBOARD_*`, `LIVESCREENLOG_SECURITY_HMAC_SECRET`, `LIVESCREENLOG_SECURITY_ALLOWED_CAPTURE_ORIGINS`. The same names without `SECURITY_` fail to start |
+| Profile is `dev` | Use `SPRING_PROFILES_ACTIVE=prod` even on a dev server. Remove `dev` from compose environment and env files |
+| UnknownHostException: postgres | Use compose service names (`shared-db`, `valkey`). Same `networks:` (e.g. devops-net). `docker exec <app> getent hosts <service>` |
+| DB port | On the same network use **5432**. Do not use host mapping 15432 for container-to-container traffic |
+| Port 8090 but Tomcat 8080 | `8090:8080` is correct. `8090:8090` needs `SERVER_PORT=8090`. CORS origin must match the browser port |
+| FILE appender / no log file | Make `/data/livescreenlog/logs` writable by the container user. `user: "uid:gid"` or `chown 100:100` |
+| Env password login fails | Created only when `users` is empty on first boot. Env is ignored after that. Check the FIRST BOOT banner in `docker logs`. If users already exist: `--create-admin=user:pass:SUPER_ADMIN` |
+| CORS | Browser address origin (host+port). `*` is forbidden in prod |
 
 ---
 
