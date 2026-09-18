@@ -1,5 +1,6 @@
 <script lang="ts">
   import { t } from '../i18n';
+  import { copyText } from '../lib/copyText';
 
   let { projects = [], canManage = false, onClose = undefined } = $props();
 
@@ -21,11 +22,13 @@
   });
 
   async function copy(text: string, key: string) {
-    try {
-      await navigator.clipboard.writeText(text);
+    const ok = await copyText(text);
+    if (ok) {
       copied = key;
       setTimeout(() => copied = null, 2000);
-    } catch {}
+    } else {
+      window.prompt('', text);
+    }
   }
 
   function highlight(code: string): string {
@@ -90,17 +93,21 @@ LiveScreenLog.init({
   integration: 'react', // or vue / browser
 });`);
 
-  let vueSnippet = $derived(`import { LiveScreenLog } from 'livescreenlog';
-import { onMounted } from 'vue';
-
-onMounted(() => {
-  LiveScreenLog.init({
-    dsn: '${host}',
-    apiKey: '${apiKey}',
-    id: user.id,
-    integration: 'vue',
-  });
+  let vueMainSnippet = $derived(`import { LiveScreenLog } from 'livescreenlog';
+LiveScreenLog.init({
+  dsn: '${host}',
+  apiKey: '${apiKey}',
+  integration: 'vue',
 });`);
+
+  let vueAppSnippet = $derived(`LiveScreenLog.setUser(user.id);
+LiveScreenLog.setTag('dept', user.dept);`);
+
+  let vueSnippet = $derived(`// main.ts
+${vueMainSnippet}
+
+// App.vue — after login
+${vueAppSnippet}`);
 
   let reactSnippet = $derived(`import { useEffect } from 'react';
 import { LiveScreenLog } from 'livescreenlog';
@@ -240,17 +247,55 @@ Accept: text/event-stream`);
           <button type="button" class="tab-btn" class:active={snippetTab === 'vue'} onclick={() => snippetTab = 'vue'}>{$t.guideTabVue}</button>
           <button type="button" class="tab-btn" class:active={snippetTab === 'react'} onclick={() => snippetTab = 'react'}>{$t.guideTabReact}</button>
         </div>
-        <div class="editor-window">
-          <div class="editor-header">
-            <div class="window-dots">
-              <span class="dot red"></span>
-              <span class="dot yellow"></span>
-              <span class="dot green"></span>
+        {#if snippetTab === 'npm'}
+          <div class="editor-window">
+            <div class="editor-header">
+              <div class="window-dots">
+                <span class="dot red"></span>
+                <span class="dot yellow"></span>
+                <span class="dot green"></span>
+              </div>
+              <span class="editor-tab-name">install</span>
             </div>
-            <span class="editor-tab-name">{editorTabName}</span>
+            <pre class="code-block"><code>{@html highlight($t.guideNpmInstall)}</code></pre>
           </div>
-          <pre class="code-block"><code>{@html highlight(activeSnippet)}</code></pre>
-        </div>
+        {/if}
+        {#if snippetTab === 'vue'}
+          <div class="editor-window">
+            <div class="editor-header">
+              <div class="window-dots">
+                <span class="dot red"></span>
+                <span class="dot yellow"></span>
+                <span class="dot green"></span>
+              </div>
+              <span class="editor-tab-name">main.ts</span>
+            </div>
+            <pre class="code-block"><code>{@html highlight(vueMainSnippet)}</code></pre>
+          </div>
+          <div class="editor-window">
+            <div class="editor-header">
+              <div class="window-dots">
+                <span class="dot red"></span>
+                <span class="dot yellow"></span>
+                <span class="dot green"></span>
+              </div>
+              <span class="editor-tab-name">App.vue</span>
+            </div>
+            <pre class="code-block"><code>{@html highlight(vueAppSnippet)}</code></pre>
+          </div>
+        {:else}
+          <div class="editor-window">
+            <div class="editor-header">
+              <div class="window-dots">
+                <span class="dot red"></span>
+                <span class="dot yellow"></span>
+                <span class="dot green"></span>
+              </div>
+              <span class="editor-tab-name">{editorTabName}</span>
+            </div>
+            <pre class="code-block"><code>{@html highlight(activeSnippet)}</code></pre>
+          </div>
+        {/if}
       </div>
 
       <div class="modes-note">

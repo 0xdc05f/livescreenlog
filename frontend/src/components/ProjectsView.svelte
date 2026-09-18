@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { t } from '../i18n';
+  import { copyText } from '../lib/copyText';
 
   let { projects = $bindable([]), onClose, canManage = false } = $props();
 
@@ -174,11 +175,13 @@
   }
 
   async function copyKey(key: string) {
-    try {
-      await navigator.clipboard.writeText(key);
+    const ok = await copyText(key);
+    if (ok) {
       copiedKey = key;
       setTimeout(() => copiedKey = null, 2000);
-    } catch {}
+    } else {
+      window.prompt('', key);
+    }
   }
 
   async function rotateKey() {
@@ -190,11 +193,7 @@
         const updated = await res.json();
         projects = projects.map((p: any) => p.id === updated.id ? updated : p);
         projectApiKey = updated.apiKey;
-        try {
-          await navigator.clipboard.writeText(updated.apiKey);
-          copiedKey = updated.apiKey;
-          setTimeout(() => { if (copiedKey === updated.apiKey) copiedKey = null; }, 2000);
-        } catch {}
+        await copyKey(updated.apiKey);
       } else {
         formError = $t.projectSettingsError;
       }

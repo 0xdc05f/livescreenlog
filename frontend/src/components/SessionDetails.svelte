@@ -4,6 +4,7 @@
   import { formatDateTime, formatRange, formatDurationMs } from '../lib/dateFormat';
   import DeviceIcons from './DeviceIcons.svelte';
   import { sessionActivity } from '../lib/sessionLive';
+  import { copyText } from '../lib/copyText';
 
   let { session, events, onSeekTo, onForceStop, onDeleteSession, loading = false, canManage = false } = $props();
 
@@ -147,11 +148,13 @@
 
   async function copySessionId() {
     if (!session?.sessionId) return;
-    try {
-      await navigator.clipboard.writeText(session.sessionId);
+    const ok = await copyText(session.sessionId);
+    if (ok) {
       copiedId = true;
       setTimeout(() => copiedId = false, 2000);
-    } catch {}
+    } else {
+      window.prompt('', session.sessionId);
+    }
   }
 
   function sessionStatusLabel(s: any): string {

@@ -236,12 +236,12 @@ URL 예: `/?view=settings&tab=stats`. 브라우저 뒤로가기는 설정↔리�
 
 ```html
 <script src="https://YOUR-LSL-HOST/livescreenlog.js"></script>
-<!-- 또는: https://github.com/0xdc05f/livescreenlog/releases/download/v0.3.1/livescreenlog-0.3.1.js -->
+<!-- 또는: https://github.com/0xdc05f/livescreenlog/releases/download/v0.3.4/livescreenlog-0.3.4.js -->
 <script>
   LiveScreenLog.init({
     apiKey: 'YOUR_PROJECT_API_KEY',
     dsn: 'https://YOUR-LSL-HOST',
-    id: 'user-001',
+    // id는 생략 가능. 로그인 후 setUser()
     onSessionReady: function (sessionId) {},
     onInitError: function (err) {},
     onStandby: function (mode) {}  // Mode B/C 대기
@@ -250,22 +250,32 @@ URL 예: `/?view=settings&tab=stats`. 브라우저 뒤로가기는 설정↔리�
 ```
 Note: 동적 CDN fallback은 `rrweb@2.1.4`. 번들 SDK는 rrweb 2.1.4을 포함합니다.
 
-### 7.3 npm / ESM
+### 7.3 npm / ESM (Vue)
 
 ```bash
-npm i livescreenlog
+npm i livescreenlog@0.3.4
 # rrweb은 의존성으로 포함되어 있으므로 별도 설치 불필요
 ```
 
 ```js
 import { LiveScreenLog } from 'livescreenlog';
 
+// 1) id 없이 init (main.ts)
 LiveScreenLog.init({
   apiKey: 'YOUR_PROJECT_API_KEY',
   dsn: 'https://YOUR-LSL-HOST',
-  id: 'user-001'
+  integration: 'vue',
 });
+
+// 2) 로그인 후 식별자
+LiveScreenLog.setUser(user.id);
+
+// 3) 부가 태그 (검색·필터)
+LiveScreenLog.setTag('dept', user.dept);
+LiveScreenLog.setTags({ app: 'erp' });
 ```
+
+HTTP에서 클립보드 API가 막히면 복사 버튼은 텍스트 프롬프트로 폴백됩니다.
 
 ### 7.4 중요 식별자
 
@@ -387,7 +397,7 @@ Base URL = 서버 origin (예: `https://lsl.example.com`).
 | 증상 | 확인 |
 |------|------|
 | prod에서 앱이 시작되지 않음 | HMAC 길이 ≥32, Origin 설정 및 `*` 아님 |
-| SDK가 녹화하지 않음 | API 키, `id`, CORS Origin, mode가 NONE이 아님 |
+| SDK가 녹화하지 않음 | API 키, `id` 또는 이후 `setUser()`, CORS Origin, mode가 NONE이 아님 |
 | 샘플 녹화 차단 | 프로젝트 키/targetUsers, 시크릿+하드 리프레시. 연결 실패 vs 정책 차단 구분 |
 | bootRun 8080 in use | `lsof -i :8080` 후 해당 PID kill |
 | `/?continue` 흰 화면 | 요청 캐시 비활성, `/` → index.html |
@@ -411,6 +421,7 @@ Base URL = 서버 origin (예: `https://lsl.example.com`).
 | FILE appender / 로그 파일 없음 | `/data/livescreenlog/logs` 를 컨테이너 유저가 쓰게. `user: "uid:gid"` 또는 `chown 100:100` |
 | env 비밀번호로 로그인 안 됨 | 최초 기동에 users가 비어 있을 때만 생성. 이후 env는 무시. `docker logs`에서 FIRST BOOT 배너 확인. 이미 있으면 `--create-admin=아이디:비번:SUPER_ADMIN` |
 | CORS | 브라우저 주소 origin (호스트+포트). `*` 는 prod 금지 |
+| 로그인은 되는 것 같은데 다시 로그인 화면 | HTTP인데 Secure 쿠키. `COOKIE_SECURE=false` 또는 `SERVER_SERVLET_SESSION_COOKIE_SECURE=false` |
 
 ---
 

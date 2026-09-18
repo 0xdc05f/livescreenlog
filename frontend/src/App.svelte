@@ -12,6 +12,7 @@
   import { t, locale } from './i18n';
   import { formatDateTime, formatRange, formatDurationMs } from './lib/dateFormat';
   import { isSessionLive, sessionActivity } from './lib/sessionLive';
+  import { copyText } from './lib/copyText';
 
   let activeNav = $state<'replay' | 'settings'>('replay');
   let settingsTab = $state<'projects' | 'guide' | 'server' | 'users' | 'account' | 'stats'>('projects');
@@ -239,12 +240,14 @@
 
   async function copySessionId() {
     if (!selectedSession?.sessionId) return;
-    try {
-      await navigator.clipboard.writeText(selectedSession.sessionId);
+    const ok = await copyText(selectedSession.sessionId);
+    if (ok) {
       copiedId = true;
       showToast($t.copied);
       setTimeout(() => { copiedId = false; }, 1500);
-    } catch {}
+    } else {
+      window.prompt('', selectedSession.sessionId);
+    }
   }
 
   function isLive(session: any): boolean {

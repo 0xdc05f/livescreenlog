@@ -37,6 +37,7 @@ class LiveScreenLogSDK {
   private sseConn: EventSource | null = null;
   private sseRetryDelay = 1000;
   private isRecordingStarted = false;
+  private handshakeStarted = false;
 
   // Offline buffering + retry (pending for failed/offline, retry with backoff)
   private pendingQueue: any[] = [];
@@ -59,15 +60,10 @@ class LiveScreenLogSDK {
       return;
     }
     const resolvedId = options.id ?? options.userId;
-    if (resolvedId == null || resolvedId === '') {
-      this.logError('init() requires id (user identifier)');
-      if (this.onInitError) {
-        this.onInitError(new Error('init() requires id (user identifier)'));
-      }
-      return;
-    }
     this.projectKey = key;
-    this.userId = String(resolvedId);
+    if (resolvedId != null && resolvedId !== '') {
+      this.userId = String(resolvedId);
+    }
     this.endpoint = options.dsn || options.endpoint || window.location.origin;
     this.mode = options.mode || 'BOTH';
     this.onSessionReady = options.onSessionReady;
@@ -82,20 +78,15 @@ class LiveScreenLogSDK {
 
     this.logInfo('Initializing LiveScreenLog SDK', SDK_NAME + '@' + SDK_VERSION, 'Mode:', this.mode);
 
-    const begin = () => {
+    if (this.userId) {
+      this.beginHandshake();
+    } else {
+      this.logInfo('Waiting for setUser() before starting session handshake');
       if (this.mode === 'REPLAY' || this.mode === 'BOTH') {
         this.ensureRrweb(() => {
           this.startPreTriggerBuffer();
-          this.startWorkflow();
         });
-      } else {
-        this.startWorkflow();
       }
-    };
-    if (typeof queueMicrotask === 'function') {
-      queueMicrotask(begin);
-    } else {
-      setTimeout(begin, 0);
     }
 
     // Offline: add 'online' listener once (clear retry, reset delay, flush)
@@ -109,7 +100,7 @@ class LiveScreenLogSDK {
     }
   }
 
-  /** Set user identity — accepts string userId or { id } / { userId } */
+  /** Set user identity — string userId or { id } / { userId }. Use this for identity, not setTag. */
   public setUser(user: LiveScreenLogUser | null | undefined) {
     if (user == null) {
       this.userId = '';
@@ -117,12 +108,16 @@ class LiveScreenLogSDK {
     }
     if (typeof user === 'string' || typeof user === 'number') {
       this.userId = String(user);
-      return;
+    } else {
+      const id = user.id ?? user.userId;
+      this.userId = id != null ? String(id) : '';
     }
-    const id = user.id ?? user.userId;
-    this.userId = id != null ? String(id) : '';
+    if (this.userId && this.projectKey && !this.isRecordingStarted && !this.token) {
+      this.beginHandshake();
+    }
   }
 
+  /** Extra tags (dept, etc.). Not for user identity — use setUser(). */
   public setTag(key: string, value: string | number | boolean | null | undefined) {
     if (!key) return;
     if (value == null) {
@@ -132,6 +127,7 @@ class LiveScreenLogSDK {
     this.tags[key] = String(value);
   }
 
+  /** Extra tags (dept, etc.). Not for user identity — use setUser(). */
   public setTags(tags: Record<string, string | number | boolean | null | undefined> | null | undefined) {
     if (!tags || typeof tags !== 'object') return;
     const normalized = this.normalizeTags(tags);
@@ -147,6 +143,26 @@ class LiveScreenLogSDK {
       out[k] = String(v);
     }
     return out;
+  }
+
+  private beginHandshake() {
+    if (this.handshakeStarted) return;
+    this.handshakeStarted = true;
+    const begin = () => {
+      if (this.mode === 'REPLAY' || this.mode === 'BOTH') {
+        this.ensureRrweb(() => {
+          this.startPreTriggerBuffer();
+          this.startWorkflow();
+        });
+      } else {
+        this.startWorkflow();
+      }
+    };
+    if (typeof queueMicrotask === 'function') {
+      queueMicrotask(begin);
+    } else {
+      setTimeout(begin, 0);
+    }
   }
 
   private startWorkflow() {

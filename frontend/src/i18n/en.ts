@@ -246,7 +246,7 @@ const en = {
   guideStep1b: '03. npm / ESM',
   guideStep1bDesc: 'Install livescreenlog (rrweb is bundled) or import the served bundle.',
   guideStep1c: '04. Vue 3',
-  guideStep1cDesc: 'Call init once after login (e.g. in App.vue or a plugin).',
+  guideStep1cDesc: 'Init without id, then call setUser / setTag after login (main.ts + App.vue).',
   guideStep2: '05. REST API (optional)',
   guideStep2Desc: 'For custom clients. Event APIs need the session token from create.',
   guideModesTitle: 'Recording modes',
@@ -254,6 +254,9 @@ const en = {
   guideKeyMasked: 'This API key is masked. Snippets use YOUR_API_KEY. You need project manage permission to see the full key.',
   guideTabHtml: 'HTML',
   guideTabNpm: 'npm',
+  guideNpmInstall: `npm i livescreenlog@0.3.4
+# Internal Nexus:
+npm i livescreenlog@0.3.4 --registry https://nexus.example/repository/npm-hosted/`,
   guideTabVue: 'Vue',
   guideTabReact: 'React',
   guideRestToggle: 'REST API (optional)',

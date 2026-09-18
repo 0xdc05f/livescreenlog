@@ -246,7 +246,7 @@ const ko = {
   guideStep1b: '03. npm / ESM',
   guideStep1bDesc: 'livescreenlog 설치 (rrweb 포함) 또는 서버 번들을 import 합니다.',
   guideStep1c: '04. Vue 3',
-  guideStep1cDesc: '로그인 후 한 번 init 하세요 (App.vue 또는 플러그인).',
+  guideStep1cDesc: 'id 없이 init 한 뒤, 로그인 후 setUser / setTag 하세요 (main.ts + App.vue).',
   guideStep2: '05. REST API (선택)',
   guideStep2Desc: '커스텀 클라이언트용. 이벤트 API는 세션 생성 토큰이 필요합니다.',
   guideModesTitle: '녹화 모드',
@@ -254,6 +254,9 @@ const ko = {
   guideKeyMasked: 'API Key가 마스킹되어 있습니다. 스니펫에는 YOUR_API_KEY를 넣었습니다. 전체 키는 프로젝트 관리 권한이 필요합니다.',
   guideTabHtml: 'HTML',
   guideTabNpm: 'npm',
+  guideNpmInstall: `npm i livescreenlog@0.3.4
+# 내부 Nexus:
+npm i livescreenlog@0.3.4 --registry https://nexus.example/repository/npm-hosted/`,
   guideTabVue: 'Vue',
   guideTabReact: 'React',
   guideRestToggle: 'REST API (선택)',

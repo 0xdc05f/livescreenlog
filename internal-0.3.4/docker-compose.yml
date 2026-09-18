@@ -1,0 +1,27 @@
+# 이 파일은 공유 compose에 붙일 livescreenlog 서비스 샘플
+# postgres / redis 서비스는 이미 같은 파일에 있다고 가정 (이름은 postgres, redis)
+# 환경값은 env.dev 에만 둠. compose environment 와 중복하지 말 것
+# 이미지 로드: docker load -i docker-images/livescreenlog-0.3.4-image.tar.gz
+# docker tag ghcr.io/0xdc05f/livescreenlog:0.3.4 livescreenlog:0.3.4
+# 기동: docker compose -f /app/docker-compose.yml up -d livescreenlog
+#   (env_file 이 컨테이너에 주입하므로 --env-file 불필요. ${} 치환 안 씀)
+# redis 서비스명이 valkey 이면 REDIS_HOST=valkey 로 두고 depends_on 도 valkey 로 맞출 것
+
+services:
+  livescreenlog:
+    image: livescreenlog:0.3.4
+    container_name: livescreenlog-app
+    env_file:
+      - /data/livescreenlog/env/env.dev
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+    volumes:
+      - /data/livescreenlog/logs:/data/livescreenlog/logs
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped

@@ -1,0 +1,17 @@
+docker load 할 파일 (이미지, ~198MB):
+  docker-images/livescreenlog-0.3.3-image.tar.gz
+  (동일 내용) images/livescreenlog-0.3.3.tar.gz
+
+docker load 하면 안 되는 파일 (npm 패키지, ~1MB):
+  files/livescreenlog-0.3.3.tgz
+  files/npm/*.tgz
+
+jar/js:
+  files/livescreenlog-0.3.3.jar
+  files/livescreenlog-0.3.3.js
+
+환경변수:
+  env.example  →  /data/livescreenlog/env/env.dev
+  (cp env.example /data/livescreenlog/env/env.dev && chmod 600)
+
+이미지 아키텍처 linux/amd64 (내부 Linux 서버용). Mac에서 이 tar를 load 하면 qemu/rosetta 필요할 수 있음.

@@ -236,12 +236,12 @@ Dashboard → Settings → Projects: create a project and copy the **API Key**.
 
 ```html
 <script src="https://YOUR-LSL-HOST/livescreenlog.js"></script>
-<!-- or: https://github.com/0xdc05f/livescreenlog/releases/download/v0.3.1/livescreenlog-0.3.1.js -->
+<!-- or: https://github.com/0xdc05f/livescreenlog/releases/download/v0.3.4/livescreenlog-0.3.4.js -->
 <script>
   LiveScreenLog.init({
     apiKey: 'YOUR_PROJECT_API_KEY',
     dsn: 'https://YOUR-LSL-HOST',
-    id: 'user-001',
+    // id may be omitted; call setUser() after login
     onSessionReady: function (sessionId) {},
     onInitError: function (err) {},
     onStandby: function (mode) {}  // Mode B/C standby
@@ -250,22 +250,32 @@ Dashboard → Settings → Projects: create a project and copy the **API Key**.
 ```
 Note: dynamic CDN fallback uses `rrweb@2.1.4`. Bundled SDK includes rrweb 2.1.4.
 
-### 7.3 npm / ESM
+### 7.3 npm / ESM (Vue)
 
 ```bash
-npm i livescreenlog
+npm i livescreenlog@0.3.4
 # rrweb is included as a dependency — no need to install it separately
 ```
 
 ```js
 import { LiveScreenLog } from 'livescreenlog';
 
+// 1) init without id (main.ts)
 LiveScreenLog.init({
   apiKey: 'YOUR_PROJECT_API_KEY',
   dsn: 'https://YOUR-LSL-HOST',
-  id: 'user-001'
+  integration: 'vue',
 });
+
+// 2) identity after login
+LiveScreenLog.setUser(user.id);
+
+// 3) extra tags (search / filter)
+LiveScreenLog.setTag('dept', user.dept);
+LiveScreenLog.setTags({ app: 'erp' });
 ```
+
+On HTTP, clipboard copy may be blocked; the copy button falls back to a text prompt.
 
 ### 7.4 Important names
 
@@ -387,7 +397,7 @@ Report vulnerabilities: [SECURITY.md](SECURITY.md)
 | Symptom | Check |
 |---------|-------|
 | App won't start in prod | HMAC length ≥32; origins set and not `*` |
-| SDK not recording | API key, `id`, CORS origin, mode not NONE |
+| SDK not recording | API key, `id` or later `setUser()`, CORS origin, mode not NONE |
 | Sample recording blocked | Project key/targetUsers, secret + hard refresh. Distinguish connect fail vs policy block |
 | bootRun 8080 in use | `lsof -i :8080` then kill the PID |
 | `/?continue` shows blank | Request cache disabled; `/` forwards to index.html |
@@ -411,6 +421,7 @@ Report vulnerabilities: [SECURITY.md](SECURITY.md)
 | FILE appender / no log file | Make `/data/livescreenlog/logs` writable by the container user. `user: "uid:gid"` or `chown 100:100` |
 | Env password login fails | Created only when `users` is empty on first boot. Env is ignored after that. Check the FIRST BOOT banner in `docker logs`. If users already exist: `--create-admin=user:pass:SUPER_ADMIN` |
 | CORS | Browser address origin (host+port). `*` is forbidden in prod |
+| Login seems to work then returns to login | HTTP with Secure cookies. Set `COOKIE_SECURE=false` or `SERVER_SERVLET_SESSION_COOKIE_SECURE=false` |
 
 ---
 

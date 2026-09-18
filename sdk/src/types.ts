@@ -7,8 +7,8 @@ export interface LiveScreenLogOptions {
   dsn?: string;
   endpoint?: string;
   /**
-   * Required user identifier (employee id / user id).
-   * Prefer this field; sessions will not start without id or userId.
+   * Preferred user identifier (employee id / user id).
+   * Can be omitted at init and set later via setUser().
    */
   id?: string | number;
   /** @deprecated use id */
