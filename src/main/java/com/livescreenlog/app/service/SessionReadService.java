@@ -88,8 +88,16 @@ public class SessionReadService {
                 queryPredicates.add(cb.equal(root.get("userId"), trimmed));
                 queryPredicates.add(cb.like(cb.lower(root.get("userId")), pattern, '\\'));
                 queryPredicates.add(cb.like(cb.lower(root.get("source")), pattern, '\\'));
+                queryPredicates.add(
+                        cb.like(
+                                cb.lower(cb.coalesce(cb.function("jsonb_pretty", String.class, root.get("tags")), cb.literal("{}"))),
+                                pattern,
+                                '\\'
+                        )
+                );
                 if (lower.length() >= 4) {
                     queryPredicates.add(cb.like(cb.lower(root.get("distinctId")), pattern, '\\'));
+                    queryPredicates.add(cb.like(cb.lower(root.get("sessionId")), pattern, '\\'));
                 }
 
                 if (!matchedProjectKeys.isEmpty()) {

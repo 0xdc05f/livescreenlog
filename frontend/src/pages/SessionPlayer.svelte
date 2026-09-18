@@ -8,6 +8,7 @@
 
   let playerContainer: HTMLElement | null = $state(null);
   let playerViewport: HTMLElement | null = $state(null);
+  let viewportObserver: ResizeObserver | null = null;
   let replayer: any = null;
   let eventSource: EventSource | null = null;
   let dialogOverlayTimer: ReturnType<typeof setTimeout> | null = null;
@@ -47,6 +48,21 @@
     const s = Math.floor(ms / 1000);
     const m = Math.floor(s / 60);
     return `${String(m).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+  }
+
+  function fitPlayer() {
+    if (!playerViewport || !playerContainer) return;
+    const wrap = playerContainer.querySelector('.replayer-wrapper') as HTMLElement | null;
+    if (!wrap) return;
+    const recW = wrap.offsetWidth;
+    const recH = wrap.offsetHeight;
+    if (!recW || !recH) return;
+    const cw = playerViewport.clientWidth;
+    const ch = playerViewport.clientHeight;
+    if (!cw || !ch) return;
+    const s = Math.min(cw / recW, ch / recH, 1);
+    wrap.style.transformOrigin = 'top center';
+    wrap.style.transform = `scale(${s})`;
   }
 
   function firstEventTs(events: any[]): number {
@@ -408,6 +424,11 @@
   // ── Mount ────────────────────────────────────────────────────────
   onMount(async () => {
     window.addEventListener('keydown', handleSpaceKey);
+    window.addEventListener('resize', fitPlayer);
+    if (typeof ResizeObserver !== 'undefined' && playerViewport) {
+      viewportObserver = new ResizeObserver(() => fitPlayer());
+      viewportObserver.observe(playerViewport);
+    }
 
     try {
       let rawEvents: any[];
@@ -440,6 +461,11 @@
         skipInactive,
         showWarning: false,
         showDebug: false,
+      });
+
+      fitPlayer();
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => fitPlayer());
       });
 
       refreshMetaDuration();
@@ -523,6 +549,7 @@
             recordingStartTs = evt.timestamp;
           }
         }
+        fitPlayer();
         const prevTotal = totalTime;
         refreshMetaDuration();
         liveDisconnected = false;
@@ -557,6 +584,9 @@
   onDestroy(() => {
     playerDestroyed = true;
     window.removeEventListener('keydown', handleSpaceKey);
+    window.removeEventListener('resize', fitPlayer);
+    viewportObserver?.disconnect();
+    viewportObserver = null;
     stopRaf();
     if (seekTimeoutId) clearTimeout(seekTimeoutId);
     if (dialogOverlayTimer) clearTimeout(dialogOverlayTimer);
@@ -769,6 +799,15 @@
 
   :global(.player-viewport) {
     position: relative;
+    overflow: hidden;
+  }
+
+  :global(.player-inner) {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    height: 100%;
+    overflow: hidden;
   }
 
   :global(.sl-replay-dialog) {

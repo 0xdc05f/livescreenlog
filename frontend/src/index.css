@@ -1155,6 +1155,11 @@ select.filter-input {
 }
 
 .player-inner {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  height: 100%;
+  overflow: hidden;
   transform-origin: center center;
 }
 

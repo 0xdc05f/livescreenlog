@@ -98,6 +98,31 @@ public class SessionIngestionService {
             return new SessionCreateResponse(null, null, false, mode);
         }
 
+        if (request.userId() != null && !request.userId().isBlank()) {
+            List<SessionMetadata> actives = metadataRepository.findByProjectKeyAndUserIdAndStatus(
+                    effectiveKey, request.userId(), "ACTIVE");
+            ZonedDateTime cutoff = ZonedDateTime.now().minusMinutes(5);
+            SessionMetadata reusable = null;
+            for (SessionMetadata active : actives) {
+                ZonedDateTime updatedAt = active.getUpdatedAt();
+                if (updatedAt == null || updatedAt.isBefore(cutoff)) {
+                    active.stop();
+                    metadataRepository.save(active);
+                } else if (reusable == null || updatedAt.isAfter(reusable.getUpdatedAt())) {
+                    reusable = active;
+                }
+            }
+            if (reusable != null) {
+                if (request.tags() != null && !request.tags().isEmpty()) {
+                    reusable.mergeTags(request.tags());
+                    metadataRepository.save(reusable);
+                }
+                long expirationMillis = System.currentTimeMillis() + (24 * 60 * 60 * 1000L);
+                String token = generateToken(reusable.getSessionId(), expirationMillis);
+                return new SessionCreateResponse(reusable.getSessionId(), token, true, mode);
+            }
+        }
+
         String sessionId = UUID.randomUUID().toString();
         SessionMetadata metadata = SessionMetadata.builder()
                 .sessionId(sessionId)

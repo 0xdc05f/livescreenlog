@@ -1,0 +1,11 @@
+docker load 할 파일 (이미지):
+  docker-images/livescreenlog-0.3.5-image.tar.gz
+  (동일 내용) images/livescreenlog-0.3.5.tar.gz
+
+이번 업데이트는 서버 이미지만. Vue SDK는 0.3.4와 동일 — npm 트리 생략.
+
+환경변수:
+  env.example  →  /data/livescreenlog/env/env.dev
+  (cp env.example /data/livescreenlog/env/env.dev && chmod 600)
+
+이미지 아키텍처 linux/amd64 (내부 Linux 서버용). Mac에서 이 tar를 load 하면 qemu/rosetta 필요할 수 있음.

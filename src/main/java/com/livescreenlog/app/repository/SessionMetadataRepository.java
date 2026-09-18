@@ -12,6 +12,8 @@ import java.util.List;
 
 public interface SessionMetadataRepository extends JpaRepository<SessionMetadata, String>, JpaSpecificationExecutor<SessionMetadata> {
 
+    List<SessionMetadata> findByProjectKeyAndUserIdAndStatus(String projectKey, String userId, String status);
+
     /**
      * ACTIVE 상태이며 updatedAt이 cutoff 이전인 세션을 STOPPED 로 일괄 변경.
      * @return 변경된 건수

@@ -65,9 +65,6 @@
   let copiedId = $state(false);
     let currentUser = $state<any>(null);
    let canManage = $derived(currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'ADMIN');
-   let recommendedSessions = $state<any[]>([]);
-   let recLoading = $state(false);
-
    function showToast(msg: string) {
     toastMsg = msg;
     if (toastTimer) clearTimeout(toastTimer);
@@ -88,19 +85,6 @@
      } catch {}
    }
 
-   async function loadRecommended() {
-     recLoading = true;
-     try {
-       const res = await fetch('/api/sessions/recommended?limit=6');
-       if (res.ok) recommendedSessions = await res.json();
-       else recommendedSessions = [];
-     } catch {
-       recommendedSessions = [];
-     } finally {
-       recLoading = false;
-     }
-   }
-
    function setDocumentLang(lang: string) {
     if (typeof document !== 'undefined') {
       document.documentElement.lang = lang;
@@ -110,7 +94,6 @@
     onMount(() => {
       loadProjects();
       loadCurrentUser();
-      loadRecommended();
       setDocumentLang($locale);
       const v = parseViewFromUrl();
       activeNav = v.nav;
@@ -461,26 +444,6 @@
             <IntegrationGuideView {projects} canManage={canManage} onClose={() => navigate('replay')} />
          {/if}
         {:else}
-        {#if recLoading || recommendedSessions.length > 0}
-         <div class="rec-rail">
-           <div class="rec-head">{$t.recommendedTitle}</div>
-           {#if recLoading}
-             <div class="rec-loading">{$t.recommendedLoading}</div>
-           {:else}
-             <div class="rec-list">
-               {#each recommendedSessions as rec (rec.sessionId)}
-                 <button type="button" class="rec-card" class:active={selectedSession?.sessionId === rec.sessionId} onclick={() => handleSelectSession(rec)}>
-                   <span class="rec-card-title">{projectTitle(rec)}</span>
-                   {#if rec.hasError}
-                     <span class="ended-meta-badge">{$t.recommendedReasonError}</span>
-                   {/if}
-                   <span class="rec-card-user">{rec.userId || $t.anonymous}</span>
-                 </button>
-               {/each}
-             </div>
-           {/if}
-         </div>
-        {/if}
           {#if selectedSession}
            <div class="session-bar">
              <div class="session-bar-left">

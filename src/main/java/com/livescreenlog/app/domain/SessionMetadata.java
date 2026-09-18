@@ -14,6 +14,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.type.SqlTypes;
 
 import java.time.ZonedDateTime;
+import java.util.HashMap;
 import java.util.Map;
 
 @Entity
@@ -95,6 +96,17 @@ public class SessionMetadata {
         this.sdkIntegration = sdkIntegration;
         this.hasError = hasError != null ? hasError : false;
         this.endAt = endAt;
+    }
+
+    public void mergeTags(Map<String, String> incoming) {
+        if (incoming == null || incoming.isEmpty()) {
+            return;
+        }
+        if (this.tags == null) {
+            this.tags = new HashMap<>(incoming);
+        } else {
+            this.tags.putAll(incoming);
+        }
     }
 
     public void stop() {
