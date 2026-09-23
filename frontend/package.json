@@ -19,6 +19,6 @@
     "vite": "^8.3.0"
   },
   "dependencies": {
-    "rrweb": "2.1.4"
+    "rrweb": "2.1.6"
   }
 }
