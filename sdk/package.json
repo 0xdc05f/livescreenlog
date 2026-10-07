@@ -35,7 +35,7 @@
     "access": "public"
   },
   "dependencies": {
-    "rrweb": "2.1.4"
+    "rrweb": "2.1.7"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^29.0.3",
